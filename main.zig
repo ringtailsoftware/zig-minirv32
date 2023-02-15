@@ -3,8 +3,10 @@ const term = @import("term.zig");
 
 const rv32 = @cImport({
     @cInclude("mini-rv32ima.h");
-    @cInclude("default64mbdtc.h");
 });
+
+const dtbData = @embedFile("sixtyfourmb.dtb");
+const imageData = @embedFile("Image");
 
 var console_scratch: [8192]u8 = undefined;
 var console_fifo = std.fifo.LinearFifo(u8, .Slice).init(console_scratch[0..]);
@@ -59,20 +61,12 @@ pub fn main() !void {
     @memset(memory.ptr, 0x00, ramSize);
     defer std.heap.page_allocator.free(memory);
 
-    // Get the path
-    var path_buffer: [std.fs.MAX_PATH_BYTES]u8 = undefined;
-    const path = try std.fs.realpath("Image", &path_buffer);
+    // load image into ram
+    @memcpy(memory.ptr, imageData, imageData.len);
 
-    // Open the file
-    const file = try std.fs.openFileAbsolute(path, .{});
-    defer file.close();
-
-    // Read the contents
-    _ = try file.readAll(memory);
-
-    // use default dtb
-	const dtb_off = ramSize - rv32.default64mbdtb.len - @sizeOf(rv32.MiniRV32IMAState);
-	@memcpy(memory.ptr + dtb_off, &rv32.default64mbdtb, rv32.default64mbdtb.len);
+    // load DTB into ram
+	const dtb_off = ramSize - dtbData.len - @sizeOf(rv32.MiniRV32IMAState);
+	@memcpy(memory.ptr + dtb_off, dtbData, dtbData.len);
 
 	// The core lives at the end of RAM.
     var core:*rv32.MiniRV32IMAState = @ptrCast(*rv32.MiniRV32IMAState, memory.ptr + (ramSize - @sizeOf(rv32.MiniRV32IMAState)));
