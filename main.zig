@@ -1,5 +1,4 @@
 const std = @import("std");
-const term = @import("term.zig");
 
 const rv32 = @cImport({
     @cInclude("mini-rv32ima.h");
@@ -13,10 +12,15 @@ var console_fifo = std.fifo.LinearFifo(u8, .Slice).init(console_scratch[0..]);
 
 const ramSize = 16 * 1024 * 1024;
 
+
+// JS function
+extern fn tty_write(b:u8) void;
+extern fn getTimeUs() u32;  // //std.time.microTimestamp();
+extern fn sleep() void;
+
 export fn HandleControlStore(addr: u32, val: u32) callconv(.C) u32 {
     if (addr == 0x10000000) { //UART 8250 / 16550 Data Buffer
-        std.debug.print("{c}", .{@intCast(u8, val)});
-        // FIXME term.write
+        tty_write(@intCast(u8, val));
     }
     return 0;
 }
@@ -45,21 +49,44 @@ export fn HandleException(ir: u32, code: u32) callconv(.C) u32 {
 
 export fn HandleOtherCSRWrite(image: [*]u8, csrno: u16, value: u32) callconv(.C) void {
     _ = image;
+    _ = value;
     if (csrno == 0x136) {
-        std.log.info("CSR 0x136: {d}", .{value});
+//        std.log.info("CSR 0x136: {d}", .{value});
     }
     if (csrno == 0x137) {
-        std.log.info("CSR 0x137: {x}", .{value});
+//        std.log.info("CSR 0x137: {x}", .{value});
     }
     if (csrno == 0x138) {
-        std.log.info("CSR 0x138: TBD dump data at {x}", .{value - rv32.MINIRV32_RAM_IMAGE_OFFSET});
+//        std.log.info("CSR 0x138: TBD dump data at {x}", .{value - rv32.MINIRV32_RAM_IMAGE_OFFSET});
     }
 }
 
-pub fn main() !void {
-    const memory = try std.heap.page_allocator.alignedAlloc(u8, 4, ramSize);
+// export to JS
+export fn loop() void {
+    loop_internal() catch {
+    };
+}
+
+export fn tty_read(b:u8) void {
+    const sl: [1]u8 = .{b};
+    _ = console_fifo.write(&sl) catch null;
+}
+
+export fn setup() void {
+    setup_internal() catch {
+    };
+}
+
+var startTime:u32 = 0;
+const instrs_per_flip: u32 = 1024*10;
+var lastTime:u32 = 0;
+var core: *rv32.MiniRV32IMAState = undefined;
+var memory:[] align(4) u8 = undefined;
+
+fn setup_internal() !void {
+    memory = try std.heap.page_allocator.alignedAlloc(u8, 4, ramSize);
     @memset(memory.ptr, 0x00, ramSize);
-    defer std.heap.page_allocator.free(memory);
+    //defer std.heap.page_allocator.free(memory);
 
     // load image into ram
     @memcpy(memory.ptr, imageData, imageData.len);
@@ -69,7 +96,8 @@ pub fn main() !void {
     @memcpy(memory.ptr + dtb_off, dtbData, dtbData.len);
 
     // The core lives at the end of RAM.
-    var core: *rv32.MiniRV32IMAState = @ptrCast(*rv32.MiniRV32IMAState, memory.ptr + (ramSize - @sizeOf(rv32.MiniRV32IMAState)));
+    //var core: *rv32.MiniRV32IMAState = @ptrCast(*rv32.MiniRV32IMAState, memory.ptr + (ramSize - @sizeOf(rv32.MiniRV32IMAState)));
+    core = @ptrCast(*rv32.MiniRV32IMAState, memory.ptr + (ramSize - @sizeOf(rv32.MiniRV32IMAState)));
 
     core.pc = rv32.MINIRV32_RAM_IMAGE_OFFSET;
     core.regs[10] = 0x00; // hart ID
@@ -85,19 +113,11 @@ pub fn main() !void {
     }
 
     // Image is loaded.
+    startTime = getTimeUs();
+}
 
-    term.init();
-
-    const startTime = std.time.microTimestamp();
-
-    const instrs_per_flip: u32 = 1024;
-    var lastTime: u32 = 0;
-    while (true) {
-        if (term.getch()) |b| {
-            const sl: [1]u8 = .{b};
-            _ = console_fifo.write(&sl) catch null;
-        }
-
+pub fn loop_internal() !void {
+//    while (true) {
         var this_ccount = core.cyclel;
         var elapsedUs: u32 = 0;
         const fixed_update = false;
@@ -105,7 +125,7 @@ pub fn main() !void {
         if (fixed_update) {
             elapsedUs = this_ccount / time_divisor - lastTime;
         } else {
-            elapsedUs = @intCast(u32, @divFloor(std.time.microTimestamp() - startTime, time_divisor)) - lastTime;
+            elapsedUs = @intCast(u32, @divFloor(getTimeUs() - startTime, time_divisor)) - lastTime;
         }
 
         lastTime += elapsedUs;
@@ -113,12 +133,16 @@ pub fn main() !void {
         switch (ret) {
             0 => {},
             1 => {
-                std.time.sleep(std.time.ns_per_us * 5000);
-                core.cyclel += instrs_per_flip;
+                //std.time.sleep(std.time.ns_per_us * 5000); // FIXME
+                //sleep();
+                const st = getTimeUs();
+                while(getTimeUs() < st + 5000) {
+                }
+                //core.cyclel += instrs_per_flip;
             },
             else => {
-                std.log.info("Unknown failure ret code {d}", .{ret});
+//                std.log.info("Unknown failure ret code {d}", .{ret});
             },
         }
-    }
+//    }
 }
