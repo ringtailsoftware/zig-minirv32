@@ -13,6 +13,7 @@ var console_fifo = std.fifo.LinearFifo(u8, .Slice).init(console_scratch[0..]);
 
 const ramSize = 16*1024*1024;
 
+
 export fn HandleControlStore(addr:u32, val:u32) callconv(.C) u32 {
     if (addr == 0x10000000 ) { //UART 8250 / 16550 Data Buffer
         std.debug.print("{c}", .{@intCast(u8, val)});

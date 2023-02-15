@@ -2,9 +2,6 @@ const std = @import("std");
 
 const rv32ima_flags = [_][]const u8{
     "-Wall",
-    "-fsanitize=shift",
-//    "-O0",
-//    "-fsanitize=integer",
 };
 
 const rv32ima_sources = [_][]const u8{
