@@ -24,7 +24,7 @@ pub fn init() void {
 
     // non-blocking reads
     raw.c_cc[c.VMIN] = 0;
-    raw.c_cc[c.VTIME] = 0;//  // 0.1s timeout
+    raw.c_cc[c.VTIME] = 0; //  // 0.1s timeout
 
     if (c.tcsetattr(std.os.linux.STDIN_FILENO, c.TCSANOW, &raw) < 0) {
         std.debug.print("could not set new terminal settings\n", .{});
@@ -54,10 +54,9 @@ pub fn getch() ?u8 {
     return b;
 }
 
-pub fn write(buf:[]const u8) !void {
+pub fn write(buf: []const u8) !void {
     const count = c.write(std.os.linux.STDOUT_FILENO, @ptrCast(*const anyopaque, buf.ptr), buf.len);
     if (count < buf.len) {
         std.debug.print("\nTBD, implement write retries\n", .{});
     }
 }
-
