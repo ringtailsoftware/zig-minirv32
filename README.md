@@ -4,6 +4,8 @@ Toby Jaffey https://mastodon.me.uk/@tobyjaffey
 
 A zig wrapper for https://github.com/cnlohr/mini-rv32ima
 
+![](demo.gif)
+
     zig build && ./zig-out/bin/zigrv32ima
 
 Tested with `zig 0.11.0-dev.1507+6f13a725a` on linux/aarch64.
