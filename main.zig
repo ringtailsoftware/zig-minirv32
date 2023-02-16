@@ -11,7 +11,7 @@ const imageData = @embedFile("Image");
 var console_scratch: [8192]u8 = undefined;
 var console_fifo = std.fifo.LinearFifo(u8, .Slice).init(console_scratch[0..]);
 
-const ramSize = 16 * 1024 * 1024;
+const memSize = 16 * 1024 * 1024;
 
 export fn HandleControlStore(addr: u32, val: u32) callconv(.C) u32 {
     if (addr == 0x10000000) { //UART 8250 / 16550 Data Buffer
@@ -57,19 +57,19 @@ export fn HandleOtherCSRWrite(image: [*]u8, csrno: u16, value: u32) callconv(.C)
 }
 
 pub fn main() !void {
-    const memory = try std.heap.page_allocator.alignedAlloc(u8, 4, ramSize);
-    @memset(memory.ptr, 0x00, ramSize);
+    const memory = try std.heap.page_allocator.alignedAlloc(u8, 4, memSize);
+    @memset(memory.ptr, 0x00, memSize);
     defer std.heap.page_allocator.free(memory);
 
     // load image into ram
     @memcpy(memory.ptr, imageData, imageData.len);
 
     // load DTB into ram
-    const dtb_off = ramSize - dtbData.len - @sizeOf(rv32.MiniRV32IMAState);
+    const dtb_off = memSize - dtbData.len - @sizeOf(rv32.MiniRV32IMAState);
     @memcpy(memory.ptr + dtb_off, dtbData, dtbData.len);
 
     // The core lives at the end of RAM.
-    var core: *rv32.MiniRV32IMAState = @ptrCast(*rv32.MiniRV32IMAState, memory.ptr + (ramSize - @sizeOf(rv32.MiniRV32IMAState)));
+    var core: *rv32.MiniRV32IMAState = @ptrCast(*rv32.MiniRV32IMAState, memory.ptr + (memSize - @sizeOf(rv32.MiniRV32IMAState)));
 
     core.pc = rv32.MINIRV32_RAM_IMAGE_OFFSET;
     core.regs[10] = 0x00; // hart ID
@@ -109,7 +109,7 @@ pub fn main() !void {
         }
 
         lastTime += elapsedUs;
-        const ret = rv32.MiniRV32IMAStep(core, memory.ptr, 0, elapsedUs, instrs_per_flip, ramSize);
+        const ret = rv32.MiniRV32IMAStep(core, memory.ptr, 0, elapsedUs, instrs_per_flip, memSize);
         switch (ret) {
             0 => {},
             1 => {
@@ -122,3 +122,18 @@ pub fn main() !void {
         }
     }
 }
+
+
+export fn MiniRV32IMAStep_zig(state:*rv32.MiniRV32IMAState, image:[*] align(4) u8, vProcAddress:u32, elapsedUs:u32, count:c_int, ramSize:u32) callconv(.C) i32 {
+    _ = state;
+    _ = count;
+    _ = image;
+    _ = vProcAddress;
+    _ = elapsedUs;
+    _ = ramSize;
+    return 0;
+}
+
+
+
+
