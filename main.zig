@@ -124,7 +124,27 @@ pub fn main() !void {
 }
 
 
+
 export fn MiniRV32IMAStep_zig(state:*rv32.MiniRV32IMAState, image:[*] align(4) u8, vProcAddress:u32, elapsedUs:u32, count:c_int, ramSize:u32) callconv(.C) i32 {
+//    #define CSR( x ) state->x
+//    #define SETCSR( x, val ) { state->x = val; }
+//    #define REG( x ) state->regs[x]
+//    #define REGSET( x, val ) { state->regs[x] = val; }
+
+//	uint32_t new_timer = CSR( timerl ) + elapsedUs;
+//	if( new_timer < CSR( timerl ) ) CSR( timerh )++;
+//	CSR( timerl ) = new_timer;
+//
+//
+//	// Handle Timer interrupt.
+//	if( ( CSR( timerh ) > CSR( timermatchh ) || ( CSR( timerh ) == CSR( timermatchh ) && CSR( timerl ) > CSR( timermatchl ) ) ) && ( CSR( timermatchh ) || CSR( timermatchl ) ) )
+//	{
+//		CSR( extraflags ) &= ~(uint32_t)4; // Clear WFI
+//		CSR( mip ) |= 1<<7; //MTIP of MIP // https://stackoverflow.com/a/61916199/2926815  Fire interrupt.
+//	}
+//	else
+//		CSR( mip ) &= (uint32_t)~(1<<7);
+
     _ = state;
     _ = count;
     _ = image;
