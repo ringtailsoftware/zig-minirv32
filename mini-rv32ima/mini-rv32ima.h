@@ -127,26 +127,6 @@ MINIRV32_DECORATE int32_t MiniRV32IMAStep( struct MiniRV32IMAState * state, uint
         return retCode;
     }
 
-/*
-	uint32_t new_timer = CSR( timerl ) + elapsedUs;
-	if( new_timer < CSR( timerl ) ) CSR( timerh )++;
-	CSR( timerl ) = new_timer;
-
-
-	// Handle Timer interrupt.
-	if( ( CSR( timerh ) > CSR( timermatchh ) || ( CSR( timerh ) == CSR( timermatchh ) && CSR( timerl ) > CSR( timermatchl ) ) ) && ( CSR( timermatchh ) || CSR( timermatchl ) ) )
-	{
-		CSR( extraflags ) &= ~(uint32_t)4; // Clear WFI
-		CSR( mip ) |= 1<<7; //MTIP of MIP // https://stackoverflow.com/a/61916199/2926815  Fire interrupt.
-	}
-	else
-		CSR( mip ) &= (uint32_t)~(1<<7);
-
-	// If WFI, don't run processor.
-	if( CSR( extraflags ) & 4 )
-		return 1;
-*/
-
 	int icount;
 	for( icount = 0; icount < count; icount++ )
 	{
