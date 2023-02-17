@@ -125,33 +125,50 @@ pub fn main() !void {
 
 
 
-export fn MiniRV32IMAStep_zig(state:*rv32.MiniRV32IMAState, image:[*] align(4) u8, vProcAddress:u32, elapsedUs:u32, count:c_int, ramSize:u32) callconv(.C) i32 {
+export fn MiniRV32IMAStep_zig(state:*rv32.MiniRV32IMAState, image:[*] align(4) u8, vProcAddress:u32, elapsedUs:u32, count:c_int, ramSize:u32, retCode:*i32) callconv(.C) bool {
 //    #define CSR( x ) state->x
 //    #define SETCSR( x, val ) { state->x = val; }
 //    #define REG( x ) state->regs[x]
 //    #define REGSET( x, val ) { state->regs[x] = val; }
 
 //	uint32_t new_timer = CSR( timerl ) + elapsedUs;
+    const new_timer = state.timerl + elapsedUs;
 //	if( new_timer < CSR( timerl ) ) CSR( timerh )++;
+    if (new_timer < state.timerl) state.timerh += 1;
 //	CSR( timerl ) = new_timer;
+    state.timerl = new_timer;
 //
+// vim note, regex to convert CSR(x) to state.x, '<,'>s/CSR*([ ]*\([a-z]*\)[ ]*)/state.\1/g
 //
 //	// Handle Timer interrupt.
 //	if( ( CSR( timerh ) > CSR( timermatchh ) || ( CSR( timerh ) == CSR( timermatchh ) && CSR( timerl ) > CSR( timermatchl ) ) ) && ( CSR( timermatchh ) || CSR( timermatchl ) ) )
-//	{
+	if( ( state.timerh > state.timermatchh or ( state.timerh == state.timermatchh and state.timerl > state.timermatchl ) ) and ( state.timermatchh != 0 or state.timermatchl != 0 ) )
+	{
 //		CSR( extraflags ) &= ~(uint32_t)4; // Clear WFI
-//		CSR( mip ) |= 1<<7; //MTIP of MIP // https://stackoverflow.com/a/61916199/2926815  Fire interrupt.
-//	}
-//	else
-//		CSR( mip ) &= (uint32_t)~(1<<7);
+		state.extraflags &= ~@as(u32, 4); // Clear WFI
 
-    _ = state;
+//		CSR( mip ) |= 1<<7; //MTIP of MIP // https://stackoverflow.com/a/61916199/2926815  Fire interrupt.
+		state.mip |= 1<<7; //MTIP of MIP // https://stackoverflow.com/a/61916199/2926815  Fire interrupt.
+	}
+	else
+//		CSR( mip ) &= (uint32_t)~(1<<7);
+		state.mip &= ~(@as(u32, 1)<<@as(u32, 7));
+
+//	if( CSR( extraflags ) & 4 )
+//		return 1;
+
+	if( state.extraflags & @as(u32,4) != 0 ) {
+        retCode.* = 1;
+        return true;
+    }
+
+//    _ = state;
     _ = count;
     _ = image;
     _ = vProcAddress;
-    _ = elapsedUs;
+//    _ = elapsedUs;
     _ = ramSize;
-    return 0;
+    return false;
 }
 
 

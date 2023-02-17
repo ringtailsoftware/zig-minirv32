@@ -4,6 +4,7 @@
 #define _MINI_RV32IMAH_H
 
 #include <stdint.h>
+#include <stdbool.h>
 
 extern void cmain(void);
 
@@ -117,12 +118,16 @@ MINIRV32_DECORATE int32_t MiniRV32IMAStep( struct MiniRV32IMAState * state, uint
 #define REG( x ) state->regs[x]
 #define REGSET( x, val ) { state->regs[x] = val; }
 
-MINIRV32_DECORATE int32_t MiniRV32IMAStep_zig( struct MiniRV32IMAState * state, uint8_t * image, uint32_t vProcAddress, uint32_t elapsedUs, int count, uint32_t ramSize);
+MINIRV32_DECORATE bool MiniRV32IMAStep_zig( struct MiniRV32IMAState * state, uint8_t * image, uint32_t vProcAddress, uint32_t elapsedUs, int count, uint32_t ramSize, int32_t *retCode);
 
 MINIRV32_DECORATE int32_t MiniRV32IMAStep( struct MiniRV32IMAState * state, uint8_t * image, uint32_t vProcAddress, uint32_t elapsedUs, int count, uint32_t ramSize)
 {
-    MiniRV32IMAStep_zig(state, image, vProcAddress, elapsedUs, count, ramSize);
+    int32_t retCode;
+    if (MiniRV32IMAStep_zig(state, image, vProcAddress, elapsedUs, count, ramSize, &retCode)) {
+        return retCode;
+    }
 
+/*
 	uint32_t new_timer = CSR( timerl ) + elapsedUs;
 	if( new_timer < CSR( timerl ) ) CSR( timerh )++;
 	CSR( timerl ) = new_timer;
@@ -140,6 +145,7 @@ MINIRV32_DECORATE int32_t MiniRV32IMAStep( struct MiniRV32IMAState * state, uint
 	// If WFI, don't run processor.
 	if( CSR( extraflags ) & 4 )
 		return 1;
+*/
 
 	int icount;
 	for( icount = 0; icount < count; icount++ )
