@@ -8,13 +8,8 @@
 
 extern void cmain(void);
 
-// portable signed arithmetic right shift https://github.com/Rupt/c-arithmetic-right-shift
-static inline uint32_t sarll(int32_t m, char n) {
-    const int logical = (((int32_t) -1) >> 1) > 0;
-    uint32_t fixu = -(logical & (m < 0));
-    int32_t fix = *(int32_t*) &fixu;
-    return (m >> n) | (fix ^ (fix >> n));
-}
+uint32_t sarll(int32_t m, char n);
+
 
 /**
     To use mini-rv32ima.h for the bare minimum, the following:
@@ -113,20 +108,81 @@ MINIRV32_DECORATE int32_t MiniRV32IMAStep( struct MiniRV32IMAState * state, uint
 
 #ifdef MINIRV32_IMPLEMENTATION
 
+// portable signed arithmetic right shift https://github.com/Rupt/c-arithmetic-right-shift
+uint32_t sarll(int32_t m, char n) {
+    const int logical = (((int32_t) -1) >> 1) > 0;
+    uint32_t fixu = -(logical & (m < 0));
+    int32_t fix = *(int32_t*) &fixu;
+    return (m >> n) | (fix ^ (fix >> n));
+}
+
 #define CSR( x ) state->x
 #define SETCSR( x, val ) { state->x = val; }
 #define REG( x ) state->regs[x]
 #define REGSET( x, val ) { state->regs[x] = val; }
 
-MINIRV32_DECORATE bool MiniRV32IMAStep_zig( struct MiniRV32IMAState * state, uint8_t * image, uint32_t vProcAddress, uint32_t elapsedUs, int count, uint32_t ramSize, int32_t *retCode);
+MINIRV32_DECORATE int32_t MiniRV32IMAStep_zig( struct MiniRV32IMAState * state, uint8_t * image, uint32_t vProcAddress, uint32_t elapsedUs, int count, uint32_t ramSize);
+
+#include <stdio.h>
+#if 0
+uint32_t calc_crc32(uint8_t *data, size_t len) {
+    const uint32_t crc_table[16] = {
+        0x00000000, 0x1db71064, 0x3b6e20c8, 0x26d930ac,
+        0x76dc4190, 0x6b6b51f4, 0x4db26158, 0x5005713c,
+        0xedb88320, 0xf00f9344, 0xd6d6a3e8, 0xcb61b38c,
+        0x9b64c2b0, 0x86d3d2d4, 0xa00ae278, 0xbdbdf21c
+    };
+    uint32_t crc = ~0L;
+
+    for (size_t i = 0; i < len; i++) {
+        crc = crc_table[(crc ^ data[i]) & 0x0f] ^ (crc >> 4);
+        crc = crc_table[(crc ^ (data[i] >> 4)) & 0x0f] ^ (crc >> 4);
+        crc = ~crc;
+    }
+    return crc;
+}
+#else
+uint32_t calc_crc32(uint32_t *data, size_t len) {
+/*
+    uint32_t sum = 0;
+    for (size_t i = 0; i < len/4; i++) {
+        sum += data[i];
+    }
+    return sum;
+*/return 0;
+}
+#endif
+
+static void DumpState( struct MiniRV32IMAState * core, uint8_t * ram_image, uint32_t ram_amt )
+{
+	uint32_t pc = core->pc;
+	uint32_t pc_offset = pc - MINIRV32_RAM_IMAGE_OFFSET;
+	uint32_t ir = 0;
+
+	printf( "PC: %08x ", pc );
+	if( pc_offset >= 0 && pc_offset < ram_amt - 3 )
+	{
+		ir = *((uint32_t*)(&((uint8_t*)ram_image)[pc_offset]));
+		printf( "[0x%08x] ", ir ); 
+	}
+	else
+		printf( "[xxxxxxxxxx] " ); 
+	uint32_t * regs = core->regs;
+	printf( "CRC:%08x Z:%08x ra:%08x sp:%08x gp:%08x tp:%08x t0:%08x t1:%08x t2:%08x s0:%08x s1:%08x a0:%08x a1:%08x a2:%08x a3:%08x a4:%08x a5:%08x ", calc_crc32(ram_image, ram_amt),
+		regs[0], regs[1], regs[2], regs[3], regs[4], regs[5], regs[6], regs[7],
+		regs[8], regs[9], regs[10], regs[11], regs[12], regs[13], regs[14], regs[15] );
+	printf( "a6:%08x a7:%08x s2:%08x s3:%08x s4:%08x s5:%08x s6:%08x s7:%08x s8:%08x s9:%08x s10:%08x s11:%08x t3:%08x t4:%08x t5:%08x t6:%08x\n",
+		regs[16], regs[17], regs[18], regs[19], regs[20], regs[21], regs[22], regs[23],
+		regs[24], regs[25], regs[26], regs[27], regs[28], regs[29], regs[30], regs[31] );
+    fflush(stdout);
+}
 
 MINIRV32_DECORATE int32_t MiniRV32IMAStep( struct MiniRV32IMAState * state, uint8_t * image, uint32_t vProcAddress, uint32_t elapsedUs, int count, uint32_t ramSize)
 {
-    int32_t retCode;
-    if (MiniRV32IMAStep_zig(state, image, vProcAddress, elapsedUs, count, ramSize, &retCode)) {
-        return retCode;
-    }
+//    DumpState( state, image, ramSize);
+    return MiniRV32IMAStep_zig(state, image, vProcAddress, elapsedUs, count, ramSize);
 
+#if 0
 	int icount;
 	for( icount = 0; icount < count; icount++ )
 	{
@@ -518,6 +574,7 @@ MINIRV32_DECORATE int32_t MiniRV32IMAStep( struct MiniRV32IMAState * state, uint
 		SETCSR( pc, pc + 4 );
 	}
 	return 0;
+#endif
 }
 
 #endif
