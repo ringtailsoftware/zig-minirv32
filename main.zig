@@ -93,7 +93,7 @@ pub fn main() !void {
 
     const startTime = std.time.microTimestamp();
 
-    const instrs_per_flip: u32 = 1;//1024;
+    const instrs_per_flip: u32 = 1024;
     var lastTime: u32 = 0;
 //var icount:usize = 0;
 //const maxinstrs = 300000;
@@ -111,7 +111,7 @@ pub fn main() !void {
         if (fixed_update) {
             elapsedUs = this_ccount / time_divisor - lastTime;
         } else {
-            elapsedUs = @intCast(u32, @divFloor(std.time.microTimestamp() - startTime, time_divisor)) - lastTime;
+            elapsedUs = @intCast(u32, @divFloor(std.time.microTimestamp() - startTime, time_divisor)) -% lastTime;
         }
 
         lastTime +%= elapsedUs;
@@ -359,7 +359,7 @@ export fn MiniRV32IMAStep_zig(state:*rv32.MiniRV32IMAState, image1:[*] align(4) 
                                 if (rs2 == 0) {
                                     rval = rs1;
                                 } else {
-                                    rval = @intCast(u32, @rem(@bitCast(i32, rs1), @bitCast(i32, rs2)));
+                                    rval = @intCast(u32, @mod(@bitCast(i32, rs1), @bitCast(i32, rs2)));
                                 }
                             },
                             0b111 => { // REMU
