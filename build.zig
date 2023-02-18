@@ -1,22 +1,5 @@
 const std = @import("std");
 
-const rv32ima_flags = [_][]const u8{
-    "-Wall",
-};
-
-const rv32ima_sources = [_][]const u8{
-    "mini-rv32ima/mini-rv32ima.c",
-};
-
-fn createrv32ima(b: *std.build.Builder) *std.build.LibExeObjStep {
-    const lib = b.addStaticLibrary("rv32ima", null);
-    lib.setBuildMode(.ReleaseSafe);
-    lib.addCSourceFiles(&rv32ima_sources, &rv32ima_flags);
-    lib.addIncludePath("mini-rv32ima");
-    lib.linkSystemLibraryName("c");
-    return lib;
-}
-
 pub fn build(b: *std.build.Builder) void {
     // Standard target options allows the person running `zig build` to choose
     // what target to build for. Here we do not override the defaults, which
@@ -32,9 +15,7 @@ pub fn build(b: *std.build.Builder) void {
     exe.setTarget(target);
     exe.setBuildMode(mode);
 
-    const rv32ima = createrv32ima(b);
-    exe.linkLibrary(rv32ima);
-    exe.addIncludePath("mini-rv32ima");
+    exe.linkSystemLibraryName("c");
 
     exe.install();
 

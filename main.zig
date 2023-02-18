@@ -1,11 +1,6 @@
 const std = @import("std");
 const term = @import("term.zig");
 
-
-const rv32 = @cImport({
-    @cInclude("mini-rv32ima.h");
-});
-
 // As a note: We quouple-ify these, because in HLSL, we will be operating with
 // uint4's.  We are going to uint4 data to/from system RAM.
 //
@@ -169,7 +164,7 @@ pub fn main() !void {
 fn MiniRV32IMAStep_zig(state:*MiniRV32IMAState, image1:[*] align(4) u8, vProcAddress:u32, elapsedUs:u32, count:c_int, ramSize:u32) callconv(.C) i32 {
     const fail_on_all_faults = false;
 
-    const new_timer = state.timerl + elapsedUs;
+    const new_timer = state.timerl +% elapsedUs;
     if (new_timer < state.timerl) state.timerh += 1;
     state.timerl = new_timer;
 
