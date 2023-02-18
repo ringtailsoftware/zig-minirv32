@@ -47,7 +47,7 @@ const memSize = 64 * 1024 * 1024;
 const stdout = std.io.getStdOut();
 
 
-export fn HandleControlStore(addr: u32, val: u32) callconv(.C) u32 {
+fn HandleControlStore(addr: u32, val: u32) u32 {
     if (addr == 0x10000000) { //UART 8250 / 16550 Data Buffer
         std.debug.print("{c}", .{@intCast(u8, val)});
         // FIXME term.write
@@ -55,7 +55,7 @@ export fn HandleControlStore(addr: u32, val: u32) callconv(.C) u32 {
     return 0;
 }
 
-export fn HandleControlLoad(addr: u32) callconv(.C) u32 {
+fn HandleControlLoad(addr: u32) u32 {
     // Emulating a 8250 / 16550 UART
     if (addr == 0x10000005) {
         if (console_fifo.count > 0) {
@@ -71,13 +71,13 @@ export fn HandleControlLoad(addr: u32) callconv(.C) u32 {
     return 0;
 }
 
-export fn HandleException(ir: u32, code: u32) callconv(.C) u32 {
+fn HandleException(ir: u32, code: u32) u32 {
     //std.log.info("PROCESSOR EXCEPTION ir:{x} code:{x}", .{ir, code});
     _ = ir;
     return code;
 }
 
-export fn HandleOtherCSRWrite(image: [*]u8, csrno: u16, value: u32) callconv(.C) void {
+fn HandleOtherCSRWrite(image: [*]u8, csrno: u16, value: u32) void {
     _ = image;
     if (csrno == 0x136) {
         std.log.info("CSR 0x136: {d}", .{value});
@@ -161,7 +161,7 @@ pub fn main() !void {
     }
 }
 
-fn MiniRV32IMAStep_zig(state:*MiniRV32IMAState, image1:[*] align(4) u8, vProcAddress:u32, elapsedUs:u32, count:c_int, ramSize:u32) callconv(.C) i32 {
+fn MiniRV32IMAStep_zig(state:*MiniRV32IMAState, image1:[*] align(4) u8, vProcAddress:u32, elapsedUs:u32, count:c_int, ramSize:u32) i32 {
     const fail_on_all_faults = false;
 
     const new_timer = state.timerl +% elapsedUs;
