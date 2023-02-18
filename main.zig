@@ -146,7 +146,7 @@ pub fn main() !void {
         }
 
         lastTime +%= elapsedUs;
-        const ret = MiniRV32IMAStep_zig(core, memory.ptr, 0, elapsedUs, instrs_per_flip, memSize);
+        const ret = MiniRV32IMAStep_zig(core, memory, elapsedUs, instrs_per_flip);
         switch (ret) {
             0 => {},
             1 => {
@@ -161,16 +161,19 @@ pub fn main() !void {
     }
 }
 
-fn MiniRV32IMAStep_zig(state:*MiniRV32IMAState, image1:[*] align(4) u8, vProcAddress:u32, elapsedUs:u32, count:c_int, ramSize:u32) i32 {
+fn MiniRV32IMAStep_zig(state:*MiniRV32IMAState, image1:[] align(4) u8, elapsedUs:u32, count:usize) i32 {
     const fail_on_all_faults = false;
+    const ramSize:u32 = @intCast(u32, image1.len);
 
     const new_timer = state.timerl +% elapsedUs;
-    if (new_timer < state.timerl) state.timerh += 1;
+    if (new_timer < state.timerl) {
+        state.timerh +%= 1;
+    }
     state.timerl = new_timer;
 
     // u16 and u32 access
-    var image2 = @ptrCast([*] align(2) u16, image1);
-    var image4 = @ptrCast([*] align(4) u32, image1);
+    var image2 = std.mem.bytesAsSlice(u16, image1);
+    var image4 = std.mem.bytesAsSlice(u32, image1);
 
 	// Handle Timer interrupt.
 	if( ( state.timerh > state.timermatchh or ( state.timerh == state.timermatchh and state.timerl > state.timermatchl ) ) and ( state.timermatchh != 0 or state.timermatchl != 0 ) ) {
@@ -184,8 +187,6 @@ fn MiniRV32IMAStep_zig(state:*MiniRV32IMAState, image1:[*] align(4) u8, vProcAdd
         return 1;
     }
 
-    _ = vProcAddress;
-
     var icount:usize = 0;
     while(icount < count) : (icount += 1) {
 
@@ -194,9 +195,9 @@ fn MiniRV32IMAStep_zig(state:*MiniRV32IMAState, image1:[*] align(4) u8, vProcAdd
         var rval:u32 = 0;
 
 		// Increment both wall-clock and instruction count time.  (NOTE: Not strictly needed to run Linux)
-        state.cyclel += 1;
+        state.cyclel +%= 1;
 		if( state.cyclel == 0 ) {
-            state.cycleh += 1;
+            state.cycleh +%= 1;
         }
         
         var pc:u32 = state.pc;
