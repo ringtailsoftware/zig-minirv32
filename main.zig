@@ -42,10 +42,7 @@ const imageData = @embedFile("Image");
 var console_scratch: [8192]u8 = undefined;
 var console_fifo = std.fifo.LinearFifo(u8, .Slice).init(console_scratch[0..]);
 
-const memSize = 64 * 1024 * 1024;
-
-const stdout = std.io.getStdOut();
-
+const memSize = 16 * 1024 * 1024;
 
 fn HandleControlStore(addr: u32, val: u32) u32 {
     if (addr == 0x10000000) { //UART 8250 / 16550 Data Buffer
@@ -209,10 +206,6 @@ fn MiniRV32IMAStep_zig(state:*MiniRV32IMAState, image1:[] align(4) u8, elapsedUs
             trap = 1 + 0;  //Handle PC-misaligned access
         } else {
             ir = image4[ofs_pc/4];
-
-            //_ = stdout.writer().print("ir={x} regs[11]={x}\n", .{ir, state.regs[11]}) catch 0;
-
-
             var rdid = (ir >> 7) & 0x1f;
 
 			switch( ir & 0x7f ) {
@@ -331,11 +324,7 @@ fn MiniRV32IMAStep_zig(state:*MiniRV32IMAState, image1:[] align(4) u8, elapsedUs
 							//SB, SH, SW
 							0b000 => image1[addy] = @truncate(u8, rs2),
 							0b001 => image2[addy/2] = @truncate(u16, rs2),
-							0b010 => {
-                                //_ = stdout.writer().print("SW addy={x} rs2={x}\n", .{addy, rs2}) catch 0;
-                                //std.os.exit(0);
-                                image4[addy/4] = rs2;
-                            },
+							0b010 => image4[addy/4] = rs2,
 							else => trap = (2+1),
 						}
 					}
@@ -559,9 +548,7 @@ fn MiniRV32IMAStep_zig(state:*MiniRV32IMAState, image1:[] align(4) u8, elapsedUs
                             },
 							0b00001 => {}, //AMOSWAP.W
 							0b00000 => rs2 +%= rval, //AMOADD.W
-							0b00100 => {
-                                rs2 ^= rval; //AMOXOR.W
-                            },
+							0b00100 => rs2 ^= rval, //AMOXOR.W
 							0b01100 => rs2 &= rval, //AMOAND.W
 							0b01000 => rs2 |= rval, //AMOOR.W
 							0b10000 => { // AMOMIN.W
