@@ -6,6 +6,41 @@ const rv32 = @cImport({
     @cInclude("mini-rv32ima.h");
 });
 
+// As a note: We quouple-ify these, because in HLSL, we will be operating with
+// uint4's.  We are going to uint4 data to/from system RAM.
+//
+// We're going to try to keep the full processor state to 12 x uint4.
+const MiniRV32IMAState = struct {
+	regs:[32]u32,
+
+	pc:u32,
+	mstatus:u32,
+	cyclel:u32,
+	cycleh:u32,
+
+	timerl:u32,
+	timerh:u32,
+	timermatchl:u32,
+	timermatchh:u32,
+
+	mscratch:u32,
+	mtvec:u32,
+	mie:u32,
+	mip:u32,
+
+	mepc:u32,
+	mtval:u32,
+	mcause:u32,
+	
+	// Note: only a few bits are used.  (Machine = 3, User = 0)
+	// Bits 0..1 = privilege.
+	// Bit 2 = WFI (Wait for interrupt)
+	// Bit 3 = Load/Store has a reservation.
+	extraflags:u32,
+};
+const MINIRV32_RAM_IMAGE_OFFSET:u32 = 0x80000000;
+
+
 const dtbData = @embedFile("sixtyfourmb.dtb");
 const imageData = @embedFile("Image");
 
@@ -15,6 +50,7 @@ var console_fifo = std.fifo.LinearFifo(u8, .Slice).init(console_scratch[0..]);
 const memSize = 64 * 1024 * 1024;
 
 const stdout = std.io.getStdOut();
+
 
 export fn HandleControlStore(addr: u32, val: u32) callconv(.C) u32 {
     if (addr == 0x10000000) { //UART 8250 / 16550 Data Buffer
@@ -55,7 +91,7 @@ export fn HandleOtherCSRWrite(image: [*]u8, csrno: u16, value: u32) callconv(.C)
         std.log.info("CSR 0x137: {x}", .{value});
     }
     if (csrno == 0x138) {
-        std.log.info("CSR 0x138: TBD dump data at {x}", .{value - rv32.MINIRV32_RAM_IMAGE_OFFSET});
+        std.log.info("CSR 0x138: TBD dump data at {x}", .{value - MINIRV32_RAM_IMAGE_OFFSET});
     }
 }
 
@@ -68,15 +104,15 @@ pub fn main() !void {
     @memcpy(memory.ptr, imageData, imageData.len);
 
     // load DTB into ram
-    const dtb_off = memSize - dtbData.len - @sizeOf(rv32.MiniRV32IMAState);
+    const dtb_off = memSize - dtbData.len - @sizeOf(MiniRV32IMAState);
     @memcpy(memory.ptr + dtb_off, dtbData, dtbData.len);
 
     // The core lives at the end of RAM.
-    var core: *rv32.MiniRV32IMAState = @ptrCast(*rv32.MiniRV32IMAState, memory.ptr + (memSize - @sizeOf(rv32.MiniRV32IMAState)));
+    var core: *MiniRV32IMAState = @ptrCast(*MiniRV32IMAState, memory.ptr + (memSize - @sizeOf(MiniRV32IMAState)));
 
-    core.pc = rv32.MINIRV32_RAM_IMAGE_OFFSET;
+    core.pc = MINIRV32_RAM_IMAGE_OFFSET;
     core.regs[10] = 0x00; // hart ID
-    core.regs[11] = dtb_off + rv32.MINIRV32_RAM_IMAGE_OFFSET;
+    core.regs[11] = dtb_off + MINIRV32_RAM_IMAGE_OFFSET;
     core.extraflags |= 3; // Machine-mode.
 
     // Update system ram size in DTB (but if and only if we're using the default DTB)
@@ -115,7 +151,7 @@ pub fn main() !void {
         }
 
         lastTime +%= elapsedUs;
-        const ret = rv32.MiniRV32IMAStep(core, memory.ptr, 0, elapsedUs, instrs_per_flip, memSize);
+        const ret = MiniRV32IMAStep_zig(core, memory.ptr, 0, elapsedUs, instrs_per_flip, memSize);
         switch (ret) {
             0 => {},
             1 => {
@@ -130,21 +166,7 @@ pub fn main() !void {
     }
 }
 
-
-// vim note, regex to convert CSR(x) to state.x, '<,'>s/CSR*([ ]*\([a-z]*\)[ ]*)/state.\1/g
-//    #define CSR( x ) state->x
-//    #define SETCSR( x, val ) { state->x = val; }
-//    #define REG( x ) state->regs[x]
-//    #define REGSET( x, val ) { state->regs[x] = val; }
-
-//	#define MINIRV32_STORE4( ofs, val ) *(uint32_t*)(image + ofs) = val
-//	#define MINIRV32_STORE2( ofs, val ) *(uint16_t*)(image + ofs) = val
-//	#define MINIRV32_STORE1( ofs, val ) *(uint8_t*)(image + ofs) = val
-//	#define MINIRV32_LOAD4( ofs ) *(uint32_t*)(image + ofs)
-//	#define MINIRV32_LOAD2( ofs ) *(uint16_t*)(image + ofs)
-//	#define MINIRV32_LOAD1( ofs ) *(uint8_t*)(image + ofs)
-
-export fn MiniRV32IMAStep_zig(state:*rv32.MiniRV32IMAState, image1:[*] align(4) u8, vProcAddress:u32, elapsedUs:u32, count:c_int, ramSize:u32) callconv(.C) i32 {
+fn MiniRV32IMAStep_zig(state:*MiniRV32IMAState, image1:[*] align(4) u8, vProcAddress:u32, elapsedUs:u32, count:c_int, ramSize:u32) callconv(.C) i32 {
     const fail_on_all_faults = false;
 
     const new_timer = state.timerl + elapsedUs;
@@ -183,7 +205,7 @@ export fn MiniRV32IMAStep_zig(state:*rv32.MiniRV32IMAState, image1:[*] align(4) 
         }
         
         var pc:u32 = state.pc;
-        const ofs_pc = pc - rv32.MINIRV32_RAM_IMAGE_OFFSET;
+        const ofs_pc = pc - MINIRV32_RAM_IMAGE_OFFSET;
     
         if (ofs_pc >= ramSize) {
             trap = 1 + 1;  // Handle access violation on instruction read.
@@ -246,10 +268,10 @@ export fn MiniRV32IMAStep_zig(state:*rv32.MiniRV32IMAState, image1:[*] align(4) 
                     }
                     var rsval:u32 = @bitCast(u32, @bitCast(i32, rs1) + imm_se);
 
-					rsval -%= rv32.MINIRV32_RAM_IMAGE_OFFSET;
+					rsval -%= MINIRV32_RAM_IMAGE_OFFSET;
 
 					if( rsval >= ramSize-3 ) {
-						rsval +%= rv32.MINIRV32_RAM_IMAGE_OFFSET;
+						rsval +%= MINIRV32_RAM_IMAGE_OFFSET;
 
 						if( rsval >= 0x10000000 and rsval < 0x12000000 ) {  // UART, CLNT
 							if( rsval == 0x1100bffc ) { // https://chromitem-soc.readthedocs.io/en/latest/clint.html
@@ -284,11 +306,11 @@ export fn MiniRV32IMAStep_zig(state:*rv32.MiniRV32IMAState, image1:[*] align(4) 
 					if( addy & 0x800 != 0 ) {
                         addy |= 0xfffff000;
                     }
-					addy +%= rs1 -% rv32.MINIRV32_RAM_IMAGE_OFFSET;
+					addy +%= rs1 -% MINIRV32_RAM_IMAGE_OFFSET;
 					rdid = 0;
 
 					if( addy >= ramSize-3 ) {
-						addy +%= rv32.MINIRV32_RAM_IMAGE_OFFSET;
+						addy +%= MINIRV32_RAM_IMAGE_OFFSET;
 						if( addy >= 0x10000000 and addy < 0x12000000 ) {
 							// Should be stuff like SYSCON, 8250, CLNT
 							if( addy == 0x11004004 ) { //CLNT
@@ -381,18 +403,7 @@ export fn MiniRV32IMAStep_zig(state:*rv32.MiniRV32IMAState, image1:[*] align(4) 
                                 }
                             },
                             0b001 => {
-//                                if (pc == 0x80032624) {
-//                                    _ = stdout.writer().print("ir={x} rs1={x} rs2={x} shl={any}\n", .{ir, rs1, rs2, @shlWithOverflow(rs1, @intCast(u5, @mod(rs2, 32)))}) catch 0;
-//                                    std.os.exit(0);
-//                                }
-
-                                const sh = @shlWithOverflow(rs1, @intCast(u5, @mod(rs2, 32)));
-//                                if (sh[1] != 0) {
-//                                    rval = 0xFFFFFFFF;  // overflow?
-//                                } else {
-                                    rval = sh[0];
-//                                }
-                                //rval = @shlWithOverflow(rs1, @intCast(u5, @mod(rs2, 32)));
+                                rval = @shlWithOverflow(rs1, @intCast(u5, @mod(rs2, 32)))[0];
                             },
                             0b010 => {
                                 if (@bitCast(i32, rs1) < @bitCast(i32, rs2)) {
@@ -408,28 +419,19 @@ export fn MiniRV32IMAStep_zig(state:*rv32.MiniRV32IMAState, image1:[*] align(4) 
                                     rval = 0;
                                 }
                             },
-							0b100 => {
-//                                if (pc == 0x80032628) {
-//                                    _ = stdout.writer().print("ir={x} imm={x} is_reg={} rs1={x} rs2={x} rs1^rs2={x} \n", .{ir, imm, is_reg, rs1, rs2, rs1^rs2}) catch 0;
-//                                    std.os.exit(0);
-//                                }
-
-                                rval = rs1 ^ rs2;
-                            },
+							0b100 => rval = rs1 ^ rs2,
                             0b101 => {
-//                            case 0b101: rval = (ir & 0x40000000 ) ? (sarll(rs1,rs2) ) : (rs2>=32) ? 0 : ( rs1 >> rs2 ); break;
-
-
+                                const n = @intCast(u5, rs2 & 0x1F);
                                 if (ir & 0x40000000 != 0) {
-                                    rval = rv32.sarll(@bitCast(i32, rs1), @intCast(u8, rs2 & 0xFF));
+                                    if (n < 32) {
+                                        rval = @bitCast(u32, @bitCast(i32, rs1) >> n);
+                                    } else {
+                                        rval = 0;
+                                    }
                                 } else if (rs2 >= 32) {
                                     rval = 0;
                                 } else {
-                                    //if (rs2 >= 32) {
-                                    //    rval = 0;
-                                    //} else {
-                                        rval = rs1 >> @intCast(u5, rs2);
-                                    //}
+                                    rval = rs1 >> n; 
                                 }
                             },
 							0b110 => rval = rs1 | rs2,
@@ -537,12 +539,12 @@ export fn MiniRV32IMAStep_zig(state:*rv32.MiniRV32IMAState, image1:[*] align(4) 
                     var rs2:u32 = state.regs[(ir >> 20) & 0x1f];
                     const irmid:u32 = ( ir>>27 ) & 0x1f;
 
-					rs1 -= rv32.MINIRV32_RAM_IMAGE_OFFSET;
+					rs1 -= MINIRV32_RAM_IMAGE_OFFSET;
 
 					// We don't implement load/store from UART or CLNT with RV32A here.
 					if( rs1 >= ramSize-3 ) {
 						trap = (7+1); //Store/AMO access fault
-						rval = rs1 + rv32.MINIRV32_RAM_IMAGE_OFFSET;
+						rval = rs1 + MINIRV32_RAM_IMAGE_OFFSET;
 					} else {
                         rval = image4[rs1/4];
 						// Referenced a little bit of https://github.com/franzflasch/riscv_em/blob/master/src/core/core.c
@@ -607,13 +609,7 @@ export fn MiniRV32IMAStep_zig(state:*rv32.MiniRV32IMAState, image1:[*] align(4) 
 					trap = 0x80000007; // Timer interrupt.
 				}
 			}
-}
-//
-//
-//		MINIRV32_POSTEXEC( pc, ir, trap );
-
-//#define MINIRV32_POSTEXEC( pc, ir, retval ) { if( retval > 0 ) { if( fail_on_all_faults ) { /*printf( "FAULT\n" );*/ return 3; } else retval = HandleException( ir, retval ); } }
-
+        }
 
         if( trap > 0 ) {
             if( fail_on_all_faults ) {
@@ -623,7 +619,6 @@ export fn MiniRV32IMAStep_zig(state:*rv32.MiniRV32IMAState, image1:[*] align(4) 
                 trap = HandleException( ir, trap );
             }
         }
-
 
 		// Handle traps and interrupts.
 		if( trap != 0 ) {
