@@ -110,11 +110,20 @@ pub fn main() !void {
     term.init();
 
     const instrs_per_flip: u32 = 1024;
+    var prevKeyCtrlA = false;
 
     while (true) {
         if (term.getch()) |b| {
             const sl: [1]u8 = .{b};
             _ = console_fifo.write(&sl) catch null;
+            if (prevKeyCtrlA and b == 'd') {
+                break;
+            }
+            if (b == std.ascii.control_code.soh) {    // ctrl-a
+                prevKeyCtrlA = true;
+            } else {
+                prevKeyCtrlA = false;
+            }
         }
 
         const ret = MiniRV32IMAStep_zig(core, memory, instrs_per_flip);

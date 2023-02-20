@@ -46,11 +46,6 @@ pub fn getch() ?u8 {
         return null;
     }
 
-    // hack to get out
-    if (b == std.ascii.control_code.etx) {
-        std.os.exit(1);
-    }
-
     return b;
 }
 
