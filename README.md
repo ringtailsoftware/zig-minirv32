@@ -8,6 +8,8 @@ A pure zig port of https://github.com/cnlohr/mini-rv32ima
 
     zig build && ./zig-out/bin/zigrv32ima
 
+Type ctrl-`a` then `d` to exit.
+
 Tested with `zig 0.11.0-dev.1507+6f13a725a` on linux/aarch64.
 
 libc is linked for access to the raw terminal. To remove, comment out `lib.linkSystemLibraryName("c");` in `build.zig`.
