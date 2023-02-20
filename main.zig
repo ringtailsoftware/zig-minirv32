@@ -36,8 +36,8 @@ const memSize = 16 * 1024 * 1024;
 
 fn HandleControlStore(addr: u32, val: u32) u32 {
     if (addr == 0x10000000) { //UART 8250 / 16550 Data Buffer
-        std.debug.print("{c}", .{@intCast(u8, val)});
-        // FIXME term.write
+        var buf: [1]u8 = .{@intCast(u8, val)};
+        term.write(&buf) catch return 0;    // FIXME handle error
     }
     return 0;
 }
@@ -146,11 +146,9 @@ fn MiniRV32IMAStep_zig(state: *MiniRV32IMAState, image1: []align(4) u8, count: u
     const fail_on_all_faults = false;
     const ramSize: u32 = @intCast(u32, image1.len);
 
-    const new_timer = state.timerl +% 1;
-    if (new_timer < state.timerl) {
-        state.timerh +%= 1;
-    }
-    state.timerl = new_timer;
+    const t:i64 = std.time.microTimestamp();
+    state.timerl = @intCast(u32, @intCast(u64, t) & 0xFFFFFFFF);
+    state.timerh = @intCast(u32, @intCast(u64, t) >> 32);
 
     // u16 and u32 access
     var image2 = std.mem.bytesAsSlice(u16, image1);
