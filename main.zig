@@ -27,16 +27,43 @@ const MiniRV32IMAState = struct {
 const MINIRV32_RAM_IMAGE_OFFSET: u32 = 0x80000000;
 
 const dtbData = @embedFile("sixtyfourmb.dtb");
-const imageData = @embedFile("Image");
 
 var console_scratch: [8192]u8 = undefined;
 var console_fifo = std.fifo.LinearFifo(u8, .Slice).init(console_scratch[0..]);
 
-const memSize = 16 * 1024 * 1024;
+const memSize = 64 * 1024 * 1024;
+
+const wr = std.io.getStdOut().writer();
+
+fn DumpState(core: *MiniRV32IMAState, image1: []align(4) u8 ) !void {
+	var pc = core.pc;
+	var pc_offset = pc - MINIRV32_RAM_IMAGE_OFFSET;
+	var ir:u32 = 0;
+    const ram_amt = image1.len;
+
+    var image4 = std.mem.bytesAsSlice(u32, image1);
+
+    _ = try wr.print("PC: {x:0>8} ", .{pc});
+
+	if( pc_offset >= 0 and pc_offset < ram_amt - 3 ) {
+        ir = image4[pc_offset / 4];
+        _ = try wr.print("[0x{x:0>8}] ", .{ir});
+	} else {
+		_ = try wr.print("[xxxxxxxxxx] ", .{});
+    }
+	const regs = core.regs;
+	_ = try wr.print("Z:{x:0>8} ra:{x:0>8} sp:{x:0>8} gp:{x:0>8} tp:{x:0>8} t0:{x:0>8} t1:{x:0>8} t2:{x:0>8} s0:{x:0>8} s1:{x:0>8} a0:{x:0>8} a1:{x:0>8} a2:{x:0>8} a3:{x:0>8} a4:{x:0>8} a5:{x:0>8} ", .{
+		regs[0], regs[1], regs[2], regs[3], regs[4], regs[5], regs[6], regs[7],
+		regs[8], regs[9], regs[10], regs[11], regs[12], regs[13], regs[14], regs[15] });
+
+	_ = try wr.print("a6:{x:0>8} a7:{x:0>8} s2:{x:0>8} s3:{x:0>8} s4:{x:0>8} s5:{x:0>8} s6:{x:0>8} s7:{x:0>8} s8:{x:0>8} s9:{x:0>8} s10:{x:0>8} s11:{x:0>8} t3:{x:0>8} t4:{x:0>8} t5:{x:0>8} t6:{x:0>8}\n", .{
+		regs[16], regs[17], regs[18], regs[19], regs[20], regs[21], regs[22], regs[23],
+		regs[24], regs[25], regs[26], regs[27], regs[28], regs[29], regs[30], regs[31] });
+}
 
 fn HandleControlStore(addr: u32, val: u32) u32 {
     if (addr == 0x10000000) { //UART 8250 / 16550 Data Buffer
-        var buf: [1]u8 = .{@intCast(u8, val)};
+        var buf: [1]u8 = .{@intCast(u8, val & 0xFF)};
         term.write(&buf) catch return 0;    // FIXME handle error
     }
     return 0;
@@ -78,12 +105,28 @@ fn HandleOtherCSRWrite(image: [*]u8, csrno: u16, value: u32) void {
 }
 
 pub fn main() !void {
+    // check command line args
+    if (std.os.argv.len < 2) {
+        std.log.err("Provide bin filename", .{});
+        std.os.exit(1);
+    }
+    const binFilename = std.mem.span(std.os.argv[1]);
+
+    // allocate machine's RAM
     const memory = try std.heap.page_allocator.alignedAlloc(u8, 4, memSize);
     @memset(memory.ptr, 0x00, memSize);
     defer std.heap.page_allocator.free(memory);
 
-    // load image into ram
-    @memcpy(memory.ptr, imageData, imageData.len);
+    // load the image into RAM
+    var path_buffer: [std.fs.MAX_PATH_BYTES]u8 = undefined;
+    const path = try std.fs.realpath(binFilename, &path_buffer);
+    const file = try std.fs.openFileAbsolute(path, .{});
+    defer file.close();
+    _ = try file.readAll(memory);
+
+//    // Alternatively, load image into ram via @embed
+//    const imageData = @embedFile("Image");
+//    @memcpy(memory.ptr, imageData, imageData.len);
 
     // load DTB into ram
     const dtb_off = memSize - dtbData.len - @sizeOf(MiniRV32IMAState);
@@ -109,14 +152,16 @@ pub fn main() !void {
 
     term.init();
 
+    const single_step = false;
     const instrs_per_flip: u32 = 1024;
     var prevKeyCtrlA = false;
+    const fail_on_all_faults = false;
 
     while (true) {
         if (term.getch()) |b| {
             const sl: [1]u8 = .{b};
             _ = console_fifo.write(&sl) catch null;
-            if (prevKeyCtrlA and b == 'd') {
+            if (prevKeyCtrlA and b == 'x') {
                 break;
             }
             if (b == std.ascii.control_code.soh) {    // ctrl-a
@@ -126,7 +171,11 @@ pub fn main() !void {
             }
         }
 
-        const ret = MiniRV32IMAStep_zig(core, memory, instrs_per_flip);
+		if(single_step) {
+		    try DumpState(core, memory);
+        }
+
+        const ret = MiniRV32IMAStep_zig(core, memory, instrs_per_flip, fail_on_all_faults);
         switch (ret) {
             0 => {},
             1 => {
@@ -134,16 +183,16 @@ pub fn main() !void {
                 //std.time.sleep(std.time.ns_per_us * 5000);
                 //core.cyclel +%= instrs_per_flip;
             },
+            0x5555 => break,    // power off
             else => {
-                std.log.info("Unknown failure ret code {d}", .{ret});
+                std.log.info("Unknown failure ret code {d} pc={x}", .{ret, core.pc});
                 std.os.exit(0);
             },
         }
     }
 }
 
-fn MiniRV32IMAStep_zig(state: *MiniRV32IMAState, image1: []align(4) u8, count: usize) i32 {
-    const fail_on_all_faults = false;
+fn MiniRV32IMAStep_zig(state: *MiniRV32IMAState, image1: []align(4) u8, count: usize, fail_on_all_faults:bool) i32 {
     const ramSize: u32 = @intCast(u32, image1.len);
 
     const t:i64 = std.time.microTimestamp();
@@ -179,7 +228,7 @@ fn MiniRV32IMAStep_zig(state: *MiniRV32IMAState, image1: []align(4) u8, count: u
         }
 
         var pc: u32 = state.pc;
-        const ofs_pc = pc - MINIRV32_RAM_IMAGE_OFFSET;
+        const ofs_pc = pc -% MINIRV32_RAM_IMAGE_OFFSET;
 
         if (ofs_pc >= ramSize) {
             trap = 1 + 1; // Handle access violation on instruction read.
@@ -270,6 +319,7 @@ fn MiniRV32IMAStep_zig(state: *MiniRV32IMAState, image1: []align(4) u8, count: u
                             rval = rsval;
                         }
                     } else {
+
                         switch ((ir >> 12) & 0x7) {
                             //LB, LH, LW, LBU, LHU
                             0b000 => rval = @bitCast(u32, @intCast(i32, @bitCast(i8, image1[rsval]))),
@@ -289,6 +339,7 @@ fn MiniRV32IMAStep_zig(state: *MiniRV32IMAState, image1: []align(4) u8, count: u
                     if (addy & 0x800 != 0) {
                         addy |= 0xfffff000;
                     }
+
                     addy +%= rs1 -% MINIRV32_RAM_IMAGE_OFFSET;
                     rdid = 0;
 
@@ -315,7 +366,7 @@ fn MiniRV32IMAStep_zig(state: *MiniRV32IMAState, image1: []align(4) u8, count: u
                     } else {
                         switch ((ir >> 12) & 0x7) {
                             //SB, SH, SW
-                            0b000 => image1[addy] = @truncate(u8, rs2),
+                            0b000 => image1[addy] = @truncate(u8, rs2 & 0xFF),
                             0b001 => image2[addy / 2] = @truncate(u16, rs2),
                             0b010 => image4[addy / 4] = rs2,
                             else => trap = (2 + 1),
@@ -399,17 +450,10 @@ fn MiniRV32IMAStep_zig(state: *MiniRV32IMAState, image1: []align(4) u8, count: u
                             },
                             0b100 => rval = rs1 ^ rs2,
                             0b101 => {
-                                const n = @intCast(u5, rs2 & 0x1F);
                                 if (ir & 0x40000000 != 0) {
-                                    if (n < 32) {
-                                        rval = @bitCast(u32, @bitCast(i32, rs1) >> n);
-                                    } else {
-                                        rval = 0;
-                                    }
-                                } else if (rs2 >= 32) {
-                                    rval = 0;
+                                    rval = @bitCast(u32, @bitCast(i32, rs1) >> @intCast(u5, @mod(rs2, 32)));
                                 } else {
-                                    rval = rs1 >> n;
+                                    rval = rs1 >> @intCast(u5, @mod(rs2, 32));
                                 }
                             },
                             0b110 => rval = rs1 | rs2,
@@ -612,14 +656,14 @@ fn MiniRV32IMAStep_zig(state: *MiniRV32IMAState, image1: []align(4) u8, count: u
             //CSR( mstatus ) & 8 = MIE, & 0x80 = MPIE
             // On an interrupt, the system moves current MIE into MPIE
             state.mstatus = (((state.mstatus) & 0x08) << 4) | (((state.extraflags) & 3) << 11);
-            pc = ((state.mtvec) - 4);
+            pc = ((state.mtvec) -% 4);
 
             // XXX TODO: Do we actually want to check here? Is this correct?
             if (!(trap & 0x80000000 != 0)) {
                 state.extraflags |= 3;
             }
         }
-        state.pc = pc + 4;
+        state.pc = pc +% 4;
     }
     return 0;
 }
