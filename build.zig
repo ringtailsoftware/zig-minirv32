@@ -11,11 +11,11 @@ pub fn build(b: *std.build.Builder) void {
     // between Debug, ReleaseSafe, ReleaseFast, and ReleaseSmall.
     const mode = b.standardReleaseOptions();
 
-    const exe = b.addExecutable("zigrv32ima", "main.zig");
+    const exe = b.addExecutable("zigrv32ima", "src/main.zig");
     exe.setTarget(target);
     exe.setBuildMode(mode);
 
-    exe.linkSystemLibraryName("c");
+    exe.linkSystemLibraryName("c"); // for term.zig (termios functions)
 
     exe.install();
 
