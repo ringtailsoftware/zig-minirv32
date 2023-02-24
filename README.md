@@ -26,7 +26,7 @@ Minimal "Hello world" in zig
 
 ## `samples/shell`
 
-Interative shell (https://github.com/ringtailsoftware/zig-embshell/)
+Interactive shell (https://github.com/ringtailsoftware/zig-embshell/)
 
     cd samples/hello
     zig build
