@@ -14,7 +14,7 @@ export fn _start() callconv(.Naked) noreturn {
         // write each byte to the UART FIFO
         uart_buf_reg.* = b;
     }
-    syscon.* = 0x5555;
+    syscon.* = 0x5555;  // send powerdown
     while (true) {}
 }
 
