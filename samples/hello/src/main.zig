@@ -6,7 +6,6 @@ const uart_buf_reg = @intToPtr(*volatile u8, UART_BUF_REG_ADDR);
 
 export fn _start() callconv(.Naked) noreturn {
     asm volatile ("la sp, _sstack");    // set stack pointer
-    asm volatile ("add s0, sp, zero");  // set frame pointer to stack pointer
 
     for ("Hello world\n") |b| {
         // write each byte to the UART FIFO
