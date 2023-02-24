@@ -264,7 +264,7 @@ fn MiniRV32IMAStep_zig(state: *MiniRV32IMAState, image1: []align(4) u8, count: u
                     if (immm4 & 0x1000 != 0) immm4 |= 0xffffe000;
                     const rs1: i32 = @bitCast(i32, state.regs[(ir >> 15) & 0x1f]);
                     const rs2: i32 = @bitCast(i32, state.regs[(ir >> 20) & 0x1f]);
-                    immm4 = pc +% (immm4 - 4);
+                    immm4 = pc +% (immm4 -% 4);
                     rdid = 0;
 
                     switch ((ir >> 12) & 0x7) {
@@ -389,8 +389,8 @@ fn MiniRV32IMAStep_zig(state: *MiniRV32IMAState, image1: []align(4) u8, count: u
                     if (is_reg and (ir & 0x02000000 != 0)) {
                         switch ((ir >> 12) & 7) { //0x02000000 = RV32M
                             0b000 => rval = rs1 *% rs2, // MUL
-                            0b001 => rval = @intCast(u32, @as(i64, @bitCast(i32, rs1)) *% @as(i64, @bitCast(i32, rs2)) >> 32), // MULH
-                            0b010 => rval = @intCast(u32, (@as(i64, @bitCast(i32, rs1)) *% @intCast(i64, rs2)) >> 32), // MULHSU
+                            0b001 => rval = @intCast(u32, (@as(i64, @bitCast(i32, rs1)) *% @as(i64, @bitCast(i32, rs2)) >> 32) & 0xFFFFFFFF), // MULH
+                            0b010 => rval = @intCast(u32, ((@as(i64, @bitCast(i32, rs1)) *% @intCast(i64, rs2)) >> 32) & 0xFFFFFFFF), // MULHSU
                             0b011 => rval = @intCast(u32, (@intCast(u64, rs1) *% @intCast(u64, rs2)) >> 32), // MULHU
                             0b100 => { // DIV
                                 if (rs2 == 0) {
