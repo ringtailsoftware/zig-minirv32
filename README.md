@@ -6,7 +6,7 @@ A pure zig port of https://github.com/cnlohr/mini-rv32ima
 
 ![](demo.gif)
 
-    zig build && ./zig-out/bin/zigrv32ima Image
+    zig build && ./zig-out/bin/zigrv32ima linux.bin
 
 Type ctrl-`a` then `x` to exit.
 
