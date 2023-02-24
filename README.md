@@ -28,9 +28,17 @@ Minimal "Hello world" in zig
 
 Interactive shell (https://github.com/ringtailsoftware/zig-embshell/)
 
-    cd samples/hello
+    cd samples/shell
     zig build
     ../../zig-out/bin/zigrv32ima zig-out/bin/shell.bin
+
+## `samples/mandelbrot`
+
+ASCII mandelbrot set
+
+    cd samples/mandelbrot
+    zig build
+    ../../zig-out/bin/zigrv32ima zig-out/bin/mandelbrot.bin
 
 # Notes
 
