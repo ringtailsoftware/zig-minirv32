@@ -24,7 +24,21 @@ Minimal "Hello world" in zig
     zig build
     ../../zig-out/bin/zigrv32ima zig-out/bin/hello.bin
 
+## `samples/shell`
+
+Interative shell (https://github.com/ringtailsoftware/zig-embshell/)
+
+    cd samples/hello
+    zig build
+    ../../zig-out/bin/zigrv32ima zig-out/bin/shell.bin
+
 # Notes
+
+## Testing with qemu
+
+    qemu-system-riscv32 -machine virt -nographic -bios foo.bin
+
+## Libc usage
 
 libc is linked for access to the raw terminal. To remove, comment out `lib.linkSystemLibraryName("c");` in `build.zig`.
 The `term` struct could be replaced by this minimal stub:
