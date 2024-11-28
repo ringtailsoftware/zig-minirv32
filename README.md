@@ -4,6 +4,11 @@ Toby Jaffey https://mastodon.me.uk/@tobyjaffey
 
 A pure zig port of https://github.com/cnlohr/mini-rv32ima
 
+Blog posts documenting some of this:
+
+ - https://www.ringtailsoftware.co.uk/zig-rv32/
+ - https://www.ringtailsoftware.co.uk/zig-baremetal/
+
 Tested with `zig 0.13.0`
 
 ![](demo.gif)
