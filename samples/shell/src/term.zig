@@ -2,8 +2,9 @@ const std = @import("std");
 
 const UART_BUF_REG_ADDR:usize = 0x10000000;
 const UART_STATE_REG_ADDR:usize = 0x10000005;
-const uart_buf_reg = @intToPtr(*volatile u8, UART_BUF_REG_ADDR);
-const uart_state_reg = @intToPtr(*volatile u8, UART_STATE_REG_ADDR);
+
+const uart_buf_reg = @volatileCast(@as(*u32, @ptrFromInt(UART_BUF_REG_ADDR)));
+const uart_state_reg = @volatileCast(@as(*u32, @ptrFromInt(UART_STATE_REG_ADDR)));
 
 var tw = TermWriter{};
 

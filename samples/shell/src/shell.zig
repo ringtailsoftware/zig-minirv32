@@ -119,7 +119,7 @@ pub fn loop() !void {
                 var matches:[cmdTable.len] usize = .{undefined} ** (cmdTable.len);  // indices of matching commands
                 var numMatches:usize = 0;
                 // look for matches
-                for (cmdTable) |cmd, index| {
+                for (cmdTable, 0..) |cmd, index| {
                     if (std.mem.startsWith(u8, cmd.name, cmdbuf[0..cmdbuf_len])) {
                         matches[numMatches] = index;
                         numMatches += 1;

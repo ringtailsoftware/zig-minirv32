@@ -13,7 +13,7 @@ var originalTermios: c.struct_termios = undefined;
 pub fn init() void {
     if (c.tcgetattr(std.os.linux.STDIN_FILENO, &originalTermios) < 0) {
         std.debug.print("could not get terminal settings\n", .{});
-        std.os.exit(1);
+        std.process.exit(1);
     }
 
     var raw: c.struct_termios = originalTermios;
@@ -28,7 +28,7 @@ pub fn init() void {
 
     if (c.tcsetattr(std.os.linux.STDIN_FILENO, c.TCSANOW, &raw) < 0) {
         std.debug.print("could not set new terminal settings\n", .{});
-        std.os.exit(1);
+        std.process.exit(1);
     }
 
     _ = c.atexit(cleanup_terminal);
@@ -50,7 +50,7 @@ pub fn getch() ?u8 {
 }
 
 pub fn write(buf: []const u8) !void {
-    const count = c.write(std.os.linux.STDOUT_FILENO, @ptrCast(*const anyopaque, buf.ptr), buf.len);
+    const count = c.write(std.os.linux.STDOUT_FILENO, @as(*const anyopaque, @ptrCast(buf.ptr)), buf.len);
     if (count < buf.len) {
         std.debug.print("\nTBD, implement write retries\n", .{});
     }

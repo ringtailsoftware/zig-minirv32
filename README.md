@@ -4,7 +4,7 @@ Toby Jaffey https://mastodon.me.uk/@tobyjaffey
 
 A pure zig port of https://github.com/cnlohr/mini-rv32ima
 
-Tested with `zig 0.11.0-dev.1507+6f13a725a` on linux/aarch64.
+Tested with `zig 0.13.0`
 
 ![](demo.gif)
 

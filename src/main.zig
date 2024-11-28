@@ -33,15 +33,27 @@ var console_fifo = std.fifo.LinearFifo(u8, .Slice).init(console_scratch[0..]);
 
 const memSize = 64 * 1024 * 1024;
 
+fn ptrCastCompat(comptime T:type, value:anytype) T {
+    return @as(T, @ptrCast(value));
+}
+
+fn bitCastCompat(comptime T:type, value:anytype) T {
+    return @as(T, @bitCast(value));
+}
+
+fn intCastCompat(comptime T:type, value:anytype) T {
+    return @as(T, @intCast(value));
+}
+
 const wr = std.io.getStdOut().writer();
 
 fn DumpState(core: *MiniRV32IMAState, image1: []align(4) u8 ) !void {
-	var pc = core.pc;
-	var pc_offset = pc - MINIRV32_RAM_IMAGE_OFFSET;
+	const pc = core.pc;
+	const pc_offset = pc - MINIRV32_RAM_IMAGE_OFFSET;
 	var ir:u32 = 0;
     const ram_amt = image1.len;
 
-    var image4 = std.mem.bytesAsSlice(u32, image1);
+    const image4 = std.mem.bytesAsSlice(u32, image1);
 
     _ = try wr.print("PC: {x:0>8} ", .{pc});
 
@@ -63,7 +75,7 @@ fn DumpState(core: *MiniRV32IMAState, image1: []align(4) u8 ) !void {
 
 fn HandleControlStore(addr: u32, val: u32) u32 {
     if (addr == 0x10000000) { //UART 8250 / 16550 Data Buffer
-        var buf: [1]u8 = .{@intCast(u8, val & 0xFF)};
+        var buf: [1]u8 = .{intCastCompat(u8, val & 0xFF)};
         term.write(&buf) catch return 0;    // FIXME handle error
     }
     return 0;
@@ -73,14 +85,14 @@ fn HandleControlLoad(addr: u32) u32 {
     // Emulating a 8250 / 16550 UART
     if (addr == 0x10000005) {
         if (console_fifo.count > 0) {
-            return 0x60 | 1; //@intCast(u32, console_fifo.count);
+            return 0x60 | 1; //intCastCompat(u32, console_fifo.count);
         } else {
             return 0x60;
         }
     } else if (addr == 0x10000000 and console_fifo.count > 0) {
         var buf: [1]u8 = undefined;
         _ = console_fifo.read(&buf);
-        return @intCast(u32, buf[0]);
+        return intCastCompat(u32, buf[0]);
     }
     return 0;
 }
@@ -108,13 +120,13 @@ pub fn main() !void {
     // check command line args
     if (std.os.argv.len < 2) {
         std.log.err("Provide bin filename", .{});
-        std.os.exit(1);
+        std.process.exit(1);
     }
     const binFilename = std.mem.span(std.os.argv[1]);
 
     // allocate machine's RAM
     const memory = try std.heap.page_allocator.alignedAlloc(u8, 4, memSize);
-    @memset(memory.ptr, 0x00, memSize);
+    @memset(memory.ptr[0..memSize], 0x00);
     defer std.heap.page_allocator.free(memory);
 
     // load the image into RAM
@@ -130,10 +142,11 @@ pub fn main() !void {
 
     // load DTB into ram
     const dtb_off = memSize - dtbData.len - @sizeOf(MiniRV32IMAState);
-    @memcpy(memory.ptr + dtb_off, dtbData, dtbData.len);
+    @memcpy(memory.ptr + dtb_off, dtbData[0..dtbData.len]);
+
 
     // The core lives at the end of RAM.
-    var core: *MiniRV32IMAState = @ptrCast(*MiniRV32IMAState, memory.ptr + (memSize - @sizeOf(MiniRV32IMAState)));
+    var core: *MiniRV32IMAState = ptrCastCompat(*MiniRV32IMAState, memory.ptr + (memSize - @sizeOf(MiniRV32IMAState)));
 
     core.pc = MINIRV32_RAM_IMAGE_OFFSET;
     core.regs[10] = 0x00; // hart ID
@@ -142,7 +155,7 @@ pub fn main() !void {
 
     // Update system ram size in DTB (but if and only if we're using the default DTB)
     // Warning - this will need to be updated if the skeleton DTB is ever modified.
-    var dtb: [*]u32 = @ptrCast([*]u32, memory.ptr + dtb_off);
+    var dtb: [*]u32 = ptrCastCompat([*]u32, memory.ptr + dtb_off);
     if (dtb[0x13c / 4] == 0x00c0ff03) {
         const validram: u32 = dtb_off;
         dtb[0x13c / 4] = (validram >> 24) | (((validram >> 16) & 0xff) << 8) | (((validram >> 8) & 0xff) << 16) | ((validram & 0xff) << 24);
@@ -186,18 +199,18 @@ pub fn main() !void {
             0x5555 => break,    // power off
             else => {
                 std.log.info("Unknown failure ret code {d} pc={x}", .{ret, core.pc});
-                std.os.exit(0);
+                std.process.exit(0);
             },
         }
     }
 }
 
 fn MiniRV32IMAStep_zig(state: *MiniRV32IMAState, image1: []align(4) u8, count: usize, fail_on_all_faults:bool) i32 {
-    const ramSize: u32 = @intCast(u32, image1.len);
+    const ramSize: u32 = intCastCompat(u32, image1.len);
 
     const t:i64 = std.time.microTimestamp();
-    state.timerl = @intCast(u32, @intCast(u64, t) & 0xFFFFFFFF);
-    state.timerh = @intCast(u32, @intCast(u64, t) >> 32);
+    state.timerl = intCastCompat(u32, intCastCompat(u64, t) & 0xFFFFFFFF);
+    state.timerh = intCastCompat(u32, intCastCompat(u64, t) >> 32);
 
     // u16 and u32 access
     var image2 = std.mem.bytesAsSlice(u16, image1);
@@ -242,28 +255,28 @@ fn MiniRV32IMAStep_zig(state: *MiniRV32IMAState, image1: []align(4) u8, count: u
                 0b0110111 => rval = (ir & 0xfffff000), // LUI
                 0b0010111 => rval = pc +% (ir & 0xfffff000), // AUIPC
                 0b1101111 => { // JAL
-                    var reladdy: i32 = @intCast(i32, ((ir & 0x80000000) >> 11) | ((ir & 0x7fe00000) >> 20) | ((ir & 0x00100000) >> 9) | ((ir & 0x000ff000)));
+                    var reladdy: i32 = intCastCompat(i32, ((ir & 0x80000000) >> 11) | ((ir & 0x7fe00000) >> 20) | ((ir & 0x00100000) >> 9) | ((ir & 0x000ff000)));
                     if ((reladdy & 0x00100000) != 0) {
-                        reladdy = @bitCast(i32, @bitCast(u32, reladdy) | 0xffe00000); // Sign extension.
+                        reladdy = bitCastCompat(i32, bitCastCompat(u32, reladdy) | 0xffe00000); // Sign extension.
                     }
                     rval = pc + 4;
-                    pc = pc +% @bitCast(u32, reladdy - 4);
+                    pc = pc +% bitCastCompat(u32, reladdy - 4);
                 },
                 0b1100111 => { // JALR
                     const imm: u32 = ir >> 20;
-                    var imm_se: i32 = @intCast(i32, imm);
+                    var imm_se: i32 = intCastCompat(i32, imm);
                     if (imm & 0x800 != 0) {
-                        imm_se = @bitCast(i32, imm | 0xfffff000);
+                        imm_se = bitCastCompat(i32, imm | 0xfffff000);
                     }
                     rval = pc + 4;
-                    const newpc: u32 = ((state.regs[(ir >> 15) & 0x1f] +% @bitCast(u32, imm_se)) & ~@as(u32, 1)) - 4;
+                    const newpc: u32 = ((state.regs[(ir >> 15) & 0x1f] +% bitCastCompat(u32, imm_se)) & ~@as(u32, 1)) - 4;
                     pc = newpc;
                 },
                 0b1100011 => { // Branch
                     var immm4: u32 = ((ir & 0xf00) >> 7) | ((ir & 0x7e000000) >> 20) | ((ir & 0x80) << 4) | ((ir >> 31) << 12);
                     if (immm4 & 0x1000 != 0) immm4 |= 0xffffe000;
-                    const rs1: i32 = @bitCast(i32, state.regs[(ir >> 15) & 0x1f]);
-                    const rs2: i32 = @bitCast(i32, state.regs[(ir >> 20) & 0x1f]);
+                    const rs1: i32 = bitCastCompat(i32, state.regs[(ir >> 15) & 0x1f]);
+                    const rs2: i32 = bitCastCompat(i32, state.regs[(ir >> 20) & 0x1f]);
                     immm4 = pc +% (immm4 -% 4);
                     rdid = 0;
 
@@ -282,10 +295,10 @@ fn MiniRV32IMAStep_zig(state: *MiniRV32IMAState, image1: []align(4) u8, count: u
                             if (rs1 >= rs2) pc = immm4;
                         }, //BGE
                         0b110 => {
-                            if (@bitCast(u32, rs1) < @bitCast(u32, rs2)) pc = immm4;
+                            if (bitCastCompat(u32, rs1) < bitCastCompat(u32, rs2)) pc = immm4;
                         }, //BLTU
                         0b111 => {
-                            if (@bitCast(u32, rs1) >= @bitCast(u32, rs2)) pc = immm4;
+                            if (bitCastCompat(u32, rs1) >= bitCastCompat(u32, rs2)) pc = immm4;
                         }, //BGEU
                         else => {
                             trap = (2 + 1);
@@ -295,11 +308,11 @@ fn MiniRV32IMAStep_zig(state: *MiniRV32IMAState, image1: []align(4) u8, count: u
                 0b0000011 => { // Load
                     const rs1: u32 = state.regs[(ir >> 15) & 0x1f];
                     const imm: u32 = ir >> 20;
-                    var imm_se: i32 = @bitCast(i32, imm);
+                    var imm_se: i32 = bitCastCompat(i32, imm);
                     if (imm & 0x800 != 0) {
-                        imm_se = @bitCast(i32, imm | 0xfffff000);
+                        imm_se = bitCastCompat(i32, imm | 0xfffff000);
                     }
-                    var rsval: u32 = @bitCast(u32, @bitCast(i32, rs1) + imm_se);
+                    var rsval: u32 = bitCastCompat(u32, bitCastCompat(i32, rs1) + imm_se);
 
                     rsval -%= MINIRV32_RAM_IMAGE_OFFSET;
 
@@ -322,8 +335,8 @@ fn MiniRV32IMAStep_zig(state: *MiniRV32IMAState, image1: []align(4) u8, count: u
 
                         switch ((ir >> 12) & 0x7) {
                             //LB, LH, LW, LBU, LHU
-                            0b000 => rval = @bitCast(u32, @intCast(i32, @bitCast(i8, image1[rsval]))),
-                            0b001 => rval = @bitCast(u32, @intCast(i32, @bitCast(i16, image2[rsval / 2]))),
+                            0b000 => rval = bitCastCompat(u32, intCastCompat(i32, bitCastCompat(i8, image1[rsval]))),
+                            0b001 => rval = bitCastCompat(u32, intCastCompat(i32, bitCastCompat(i16, image2[rsval / 2]))),
                             0b010 => rval = image4[rsval / 4],
                             0b100 => rval = image1[rsval],
                             0b101 => rval = image2[rsval / 2],
@@ -353,10 +366,10 @@ fn MiniRV32IMAStep_zig(state: *MiniRV32IMAState, image1: []align(4) u8, count: u
                                 state.timermatchl = rs2;
                             } else if (addy == 0x11100000) { //SYSCON (reboot, poweroff, etc.)
                                 state.pc = pc + 4;
-                                return @bitCast(i32, rs2); // NOTE: PC will be PC of Syscon.
+                                return bitCastCompat(i32, rs2); // NOTE: PC will be PC of Syscon.
                             } else {
                                 if (HandleControlStore(addy, rs2) > 0) {
-                                    return @bitCast(i32, rs2);
+                                    return bitCastCompat(i32, rs2);
                                 }
                             }
                         } else {
@@ -366,8 +379,8 @@ fn MiniRV32IMAStep_zig(state: *MiniRV32IMAState, image1: []align(4) u8, count: u
                     } else {
                         switch ((ir >> 12) & 0x7) {
                             //SB, SH, SW
-                            0b000 => image1[addy] = @truncate(u8, rs2 & 0xFF),
-                            0b001 => image2[addy / 2] = @truncate(u16, rs2),
+                            0b000 => image1[addy] = @as(u8, @truncate(rs2 & 0xFF)),
+                            0b001 => image2[addy / 2] = @as(u16, @truncate(rs2)),
                             0b010 => image4[addy / 4] = rs2,
                             else => trap = (2 + 1),
                         }
@@ -389,14 +402,14 @@ fn MiniRV32IMAStep_zig(state: *MiniRV32IMAState, image1: []align(4) u8, count: u
                     if (is_reg and (ir & 0x02000000 != 0)) {
                         switch ((ir >> 12) & 7) { //0x02000000 = RV32M
                             0b000 => rval = rs1 *% rs2, // MUL
-                            0b001 => rval = @intCast(u32, (@as(i64, @bitCast(i32, rs1)) *% @as(i64, @bitCast(i32, rs2)) >> 32) & 0xFFFFFFFF), // MULH
-                            0b010 => rval = @intCast(u32, ((@as(i64, @bitCast(i32, rs1)) *% @intCast(i64, rs2)) >> 32) & 0xFFFFFFFF), // MULHSU
-                            0b011 => rval = @intCast(u32, (@intCast(u64, rs1) *% @intCast(u64, rs2)) >> 32), // MULHU
+                            0b001 => rval = intCastCompat(u32, (@as(i64, bitCastCompat(i32, rs1)) *% @as(i64, bitCastCompat(i32, rs2)) >> 32) & 0xFFFFFFFF), // MULH
+                            0b010 => rval = intCastCompat(u32, ((@as(i64, bitCastCompat(i32, rs1)) *% intCastCompat(i64, rs2)) >> 32) & 0xFFFFFFFF), // MULHSU
+                            0b011 => rval = intCastCompat(u32, (intCastCompat(u64, rs1) *% intCastCompat(u64, rs2)) >> 32), // MULHU
                             0b100 => { // DIV
                                 if (rs2 == 0) {
-                                    rval = @bitCast(u32, @as(i32, -1));
+                                    rval = bitCastCompat(u32, @as(i32, -1));
                                 } else {
-                                    rval = @bitCast(u32, @divTrunc(@bitCast(i32, rs1), @bitCast(i32, rs2)));
+                                    rval = bitCastCompat(u32, @divTrunc(bitCastCompat(i32, rs1), bitCastCompat(i32, rs2)));
                                 }
                             },
                             0b101 => { // DIVU
@@ -410,7 +423,7 @@ fn MiniRV32IMAStep_zig(state: *MiniRV32IMAState, image1: []align(4) u8, count: u
                                 if (rs2 == 0) {
                                     rval = rs1;
                                 } else {
-                                    rval = @intCast(u32, @mod(@bitCast(i32, rs1), @bitCast(i32, rs2)));
+                                    rval = intCastCompat(u32, @mod(bitCastCompat(i32, rs1), bitCastCompat(i32, rs2)));
                                 }
                             },
                             0b111 => { // REMU
@@ -432,10 +445,10 @@ fn MiniRV32IMAStep_zig(state: *MiniRV32IMAState, image1: []align(4) u8, count: u
                                 }
                             },
                             0b001 => {
-                                rval = @shlWithOverflow(rs1, @intCast(u5, @mod(rs2, 32)))[0];
+                                rval = @shlWithOverflow(rs1, intCastCompat(u5, @mod(rs2, 32)))[0];
                             },
                             0b010 => {
-                                if (@bitCast(i32, rs1) < @bitCast(i32, rs2)) {
+                                if (bitCastCompat(i32, rs1) < bitCastCompat(i32, rs2)) {
                                     rval = 1;
                                 } else {
                                     rval = 0;
@@ -451,9 +464,9 @@ fn MiniRV32IMAStep_zig(state: *MiniRV32IMAState, image1: []align(4) u8, count: u
                             0b100 => rval = rs1 ^ rs2,
                             0b101 => {
                                 if (ir & 0x40000000 != 0) {
-                                    rval = @bitCast(u32, @bitCast(i32, rs1) >> @intCast(u5, @mod(rs2, 32)));
+                                    rval = bitCastCompat(u32, bitCastCompat(i32, rs1) >> intCastCompat(u5, @mod(rs2, 32)));
                                 } else {
-                                    rval = rs1 >> @intCast(u5, @mod(rs2, 32));
+                                    rval = rs1 >> intCastCompat(u5, @mod(rs2, 32));
                                 }
                             },
                             0b110 => rval = rs1 | rs2,
@@ -587,12 +600,12 @@ fn MiniRV32IMAStep_zig(state: *MiniRV32IMAState, image1: []align(4) u8, count: u
                             0b01100 => rs2 &= rval, //AMOAND.W
                             0b01000 => rs2 |= rval, //AMOOR.W
                             0b10000 => { // AMOMIN.W
-                                if (!(@bitCast(i32, rs2) < @bitCast(i32, rval))) {
+                                if (!(bitCastCompat(i32, rs2) < bitCastCompat(i32, rval))) {
                                     rs2 = rval;
                                 }
                             },
                             0b10100 => { // AMOMAX.W
-                                if (!(@bitCast(i32, rs2) > @bitCast(i32, rval))) {
+                                if (!(bitCastCompat(i32, rs2) > bitCastCompat(i32, rval))) {
                                     rs2 = rval;
                                 }
                             },
