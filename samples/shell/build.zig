@@ -27,7 +27,7 @@ pub fn build(b: *std.Build) void {
     });
 
     const exe = b.addExecutable(.{
-        .name = "hello",
+        .name = "shell",
         .root_source_file = b.path("src/main.zig"),
         .target = target,
         .optimize = .ReleaseSmall,
@@ -40,6 +40,6 @@ pub fn build(b: *std.Build) void {
     });
     bin.step.dependOn(&exe.step);
 
-    const copy_bin = b.addInstallBinFile(bin.getOutput(), "hello.bin");
+    const copy_bin = b.addInstallBinFile(bin.getOutput(), "shell.bin");
     b.default_step.dependOn(&copy_bin.step);
 }

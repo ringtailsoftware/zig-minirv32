@@ -1,13 +1,15 @@
-const SYSCON_REG_ADDR: usize = 0x11100000;
-const UART_BUF_REG_ADDR: usize = 0x10000000;
+const SYSCON_REG_ADDR:usize = 0x11100000;
+const UART_BUF_REG_ADDR:usize = 0x10000000;
 
 const syscon = @volatileCast(@as(*u32, @ptrFromInt(SYSCON_REG_ADDR)));
 const uart_buf_reg = @volatileCast(@as(*u32, @ptrFromInt(UART_BUF_REG_ADDR)));
 
-export fn _start() callconv(.Naked) noreturn {
+export fn _start() noreturn {
     asm volatile ("la sp, _sstack"); // set stack pointer
-    asm volatile ("add s0, sp, zero"); // set frame pointer to stack pointer
+//    asm volatile ("add s0, sp, zero"); // set frame pointer to stack pointer
+
     mandel();
+
     syscon.* = 0x5555; // send powerdown
     while (true) {}
 }
@@ -25,6 +27,7 @@ fn mandel() void {
     const dy: i32 = @divTrunc((ymax - ymin), 24);
 
     var cy = ymin;
+
     while (cy <= ymax) {
         var cx = xmin;
         while (cx <= xmax) {
@@ -41,11 +44,11 @@ fn mandel() void {
                 y2 = (y * y) >> 12;
             }
             uart_buf_reg.* = ' ' + @as(u8, @intCast(iter));
-
             cx += dx;
         }
         uart_buf_reg.* = '\r';
         uart_buf_reg.* = '\n';
         cy += dy;
+
     }
 }

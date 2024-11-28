@@ -130,7 +130,7 @@ pub fn loop() !void {
                         1 => {  // exactly one match
                             const cmd = cmdTable[matches[0]];
                             _ = try tw.print("{s}", .{cmd.name[cmdbuf_len..]});
-                            std.mem.copy(u8, &cmdbuf, cmd.name);
+                            @memcpy(&cmdbuf, cmd.name);
                             cmdbuf_len = cmd.name.len;
                             cmdbuf[cmdbuf_len] = 0;
                         },
