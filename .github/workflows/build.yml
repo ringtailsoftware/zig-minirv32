@@ -22,11 +22,11 @@ jobs:
         working-directory: zig-minirv32
       - name: Build hello
         run: zig build
-        working-directory: samples/hello
+        working-directory: zig-minirv32/samples/hello
       - name: Build mandelbrot
         run: zig build
-        working-directory: samples/mandelbrot
+        working-directory: zig-minirv32/samples/mandelbrot
       - name: Build shell
         run: zig build
-        working-directory: samples/shell
+        working-directory: zig-minirv32/samples/shell
 
