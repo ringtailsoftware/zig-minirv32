@@ -1,18 +1,31 @@
 const std = @import("std");
 
+const SYSCON_REG_ADDR:usize = 0x11100000;
 const UART_BUF_REG_ADDR:usize = 0x10000000;
 const UART_STATE_REG_ADDR:usize = 0x10000005;
-const SYSCON_REG_ADDR: usize = 0x11100000;
 
-const syscon = @as(*volatile u8, @ptrFromInt(SYSCON_REG_ADDR));
-const uart_buf_reg = @as(*volatile u8, @ptrFromInt(UART_BUF_REG_ADDR));
-const uart_state_reg = @as(*volatile u8, @ptrFromInt(UART_STATE_REG_ADDR));
+// https://github.com/ziglang/zig/issues/21033
+const PeripheralTypeU8 = struct {
+    raw: struct {
+        value: u8
+    },
+};
+const PeripheralTypeU32 = struct {
+    raw: struct {
+        value: u32
+    },
+};
+
+var uartreg: *volatile PeripheralTypeU8 = @ptrFromInt(UART_BUF_REG_ADDR);
+var uartstatereg: *volatile PeripheralTypeU8 = @ptrFromInt(UART_STATE_REG_ADDR);
+var sysconreg: *volatile PeripheralTypeU32 = @ptrFromInt(SYSCON_REG_ADDR);
+
 
 var tw = TermWriter{};
 
 pub fn getch() ?u8 {
-    if (uart_state_reg.* & ~@as(u8, 0x60) > 0) {
-        return uart_buf_reg.*;
+    if (uartstatereg.raw.value & ~@as(u8, 0x60) > 0) {
+        return uartreg.raw.value;
     } else {
         return null;
     }
@@ -21,7 +34,7 @@ pub fn getch() ?u8 {
 fn uart_write(buf:[]const u8) !void {
     var i:usize = 0;
     while(i < buf.len) : (i+=1) {
-        uart_buf_reg.* = buf[i];
+        uartreg.raw.value = buf[i];
     }
 }
 

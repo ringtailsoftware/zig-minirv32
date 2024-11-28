@@ -90,6 +90,7 @@ fn HandleControlLoad(addr: u32) u32 {
             return 0x60;
         }
     } else if (addr == 0x10000000 and console_fifo.count > 0) {
+std.debug.print("RDUART {d}\r\n", .{console_fifo.count});
         var buf: [1]u8 = undefined;
         _ = console_fifo.read(&buf);
         return intCastCompat(u32, buf[0]);

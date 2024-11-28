@@ -1,21 +1,29 @@
 const SYSCON_REG_ADDR:usize = 0x11100000;
 const UART_BUF_REG_ADDR:usize = 0x10000000;
 
-const syscon = @volatileCast(@as(*u32, @ptrFromInt(SYSCON_REG_ADDR)));
-const uart_buf_reg = @volatileCast(@as(*u32, @ptrFromInt(UART_BUF_REG_ADDR)));
+// https://github.com/ziglang/zig/issues/21033
+const PeripheralTypeU8 = struct {
+    raw: struct {
+        value: u8
+    },
+};
+const PeripheralTypeU32 = struct {
+    raw: struct {
+        value: u32
+    },
+};
 
-export fn _start() noreturn {
-    asm volatile ("la sp, _sstack"); // set stack pointer
-//    asm volatile ("add s0, sp, zero"); // set frame pointer to stack pointer
+var uartreg: *volatile PeripheralTypeU8 = @ptrFromInt(UART_BUF_REG_ADDR);
+var sysconreg: *volatile PeripheralTypeU32 = @ptrFromInt(SYSCON_REG_ADDR);
 
+export fn kmain() noreturn {
     mandel();
-
-    syscon.* = 0x5555; // send powerdown
-    while (true) {}
+    sysconreg.raw.value = 0x5555; // send powerdown
+    unreachable;
 }
 
 // https://rosettacode.org/wiki/Mandelbrot_set
-fn mandel() void {
+export fn mandel() void {
     const xmin: i32 = -8601;
     const xmax: i32 = 2867;
     const ymin: i32 = -4915;
@@ -43,11 +51,11 @@ fn mandel() void {
                 x2 = (x * x) >> 12;
                 y2 = (y * y) >> 12;
             }
-            uart_buf_reg.* = ' ' + @as(u8, @intCast(iter));
+            uartreg.raw.value = ' ' + @as(u8, @intCast(iter));
             cx += dx;
         }
-        uart_buf_reg.* = '\r';
-        uart_buf_reg.* = '\n';
+        uartreg.raw.value = '\r';
+        uartreg.raw.value = '\n';
         cy += dy;
 
     }
