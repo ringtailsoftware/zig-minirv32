@@ -1,6 +1,5 @@
-# https://timmy.moe/blog/barebones-os-zig/
-.section .text.init
-
+# https://github.com/cnlohr/mini-rv32ima/tree/master/baremetal
+.align 4
 .global _start
 _start:
     # Only make the guaranteed hardware thread (hart) of id 0 do bootstrapping
@@ -16,21 +15,11 @@ _start:
 .option norelax
     la      gp, _global_pointer
 .option pop
-    
-    # Set up the stack
-    la      sp, _stack_end
 
-    # zero-init bss section
-    la a0, _bss_start
-    la a1, _bss_end
-    bge a0, a1, end_init_bss
-loop_init_bss:
-    sw zero, 0(a0)
-    addi a0, a0, 4
-    blt a0, a1, loop_init_bss
-end_init_bss:
-
-    tail kmain
+	la	sp, _sstack
+	addi	sp,sp,-16
+	sw	ra,12(sp)
+	jal	ra, kmain
 
 wait_for_interrupt:
     wfi

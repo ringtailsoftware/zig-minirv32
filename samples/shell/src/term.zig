@@ -6,12 +6,12 @@ const UART_STATE_REG_ADDR:usize = 0x10000005;
 
 // https://github.com/ziglang/zig/issues/21033
 const PeripheralTypeU8 = struct {
-    raw: struct {
+    raw: extern struct {
         value: u8
     },
 };
 const PeripheralTypeU32 = struct {
-    raw: struct {
+    raw: extern struct {
         value: u32
     },
 };
@@ -19,7 +19,6 @@ const PeripheralTypeU32 = struct {
 var uartreg: *volatile PeripheralTypeU8 = @ptrFromInt(UART_BUF_REG_ADDR);
 var uartstatereg: *volatile PeripheralTypeU8 = @ptrFromInt(UART_STATE_REG_ADDR);
 var sysconreg: *volatile PeripheralTypeU32 = @ptrFromInt(SYSCON_REG_ADDR);
-
 
 var tw = TermWriter{};
 
@@ -32,10 +31,7 @@ pub fn getch() ?u8 {
 }
 
 fn uart_write(buf:[]const u8) !void {
-    var i:usize = 0;
-    while(i < buf.len) : (i+=1) {
-        uartreg.raw.value = buf[i];
-    }
+    for (buf) |c| uartreg.raw.value = c;
 }
 
 // Implement a std.io.Writer backed by uart_write()

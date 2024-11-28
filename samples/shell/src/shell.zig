@@ -94,15 +94,21 @@ fn execline(line:[]const u8) !void {
 
 pub fn loop() !void {
     // try to get a key from terminal
-    const key:?u8 = term.getch();
-    if (key != null) {
+    if (term.getch()) |key| {
+
+if (false) {
+    _ = try tw.print("{d}", .{key});
+    return;
+}
+
+
         if (got_line) {
             // buffer is already full
             return;
         }
-        switch(key.?) {
+        switch(key) {
             ascii.etx => {  // ctrl-c
-                //std.os.exit(0); // FIXME, should return error from loop?
+                // FIXME, should return error from loop?
             },
             ascii.cr, ascii.lf => {
                 got_line = true;
@@ -149,10 +155,10 @@ pub fn loop() !void {
             else => {
                 // echo
                 if (cmdbuf_len < CMDBUF_SIZE_BYTES) {
-                    cmdbuf[cmdbuf_len] = key.?;
-                    cmdbuf_len = cmdbuf_len + 1;
+                    cmdbuf[cmdbuf_len] = key;
+                    cmdbuf_len += 1;
                     cmdbuf[cmdbuf_len] = 0;
-                    _ = try tw.print("{c}", .{key.?});
+                    _ = try tw.print("{c}", .{key});
                 } else {
                     _ = try tw.print("{c}", .{ascii.bel});
                 }

@@ -1,53 +1,84 @@
-/* https://timmy.moe/blog/barebones-os-zig/ */
-OUTPUT_ARCH("riscv")
+/* https://github.com/cnlohr/mini-rv32ima/tree/master/baremetal */
+__heap_size = 0x1000;
+__stack_size = 0x1000;
 
-/* Use _enter as our entry point to our program */
-ENTRY(_enter)
+ENTRY(_start)
 
-MEMORY
-{
-  /* Source of ORIGIN: https://github.com/qemu/qemu/blob/master/hw/riscv/virt.c#L97
-   * Source of LENGTH: QEMU manual has -m default to be 128MiB
-   */
-  ram (rwxa): ORIGIN = 0x80000000, LENGTH = 128M
-}
-
-
-/* We are only loading from the file using PT_LOAD, we are not using dynamic linking */
-PHDRS
-{
-  ram_fakerom PT_LOAD;
-  ram_init PT_LOAD;
-  ram PT_LOAD;
-}
-
-/* We are putting everything into RAM */
 SECTIONS
 {
-  .text : ALIGN(4K) {
-    *(.text.init);
-    *(.text);
-  } >ram :ram_fakerom
+	. = 0x80000000;
+/*
+	.header : ALIGN( 16 )
+	{
+		LONG( 0 )
+		LONG( 0 )
+	}
+*/
+	.text : ALIGN(16) {
+		__TEXT_BEGIN__ = .;
+		*(.initial_jump)
+		*(.entry.text)
+		*(.init.literal)
+		*(.init)
+		*(.text)
+		*(.literal .text .literal.* .text.* .stub)
+		*(.out_jump.literal.*)
+		*(.out_jump.*)
+		__TEXT_END__ = .;
+	}
 
-  .rodata : ALIGN(4K) {
-    PROVIDE( _global_pointer = . );
-    *(.rodata);
-  } >ram :ram_fakerom
+	/* If we're on a newer compiler */
+	/DISCARD/ :
+	{
+		*(.interp)
+		*(.dynsym)
+		*(.dynstr)
+		*(.header)
+	} : phdr
 
-  .data : ALIGN(4K) {
-    *(.data);
-  } >ram :ram_init
+	.data : ALIGN(16) {
+		__DATA_BEGIN__ = .;
+		*(.rodata)
+        PROVIDE( _global_pointer = . );
+		*(.rodata.*)
+		*(.gnu.linkonce.r.*)
+		*(.rodata1)
+		*(.dynsbss)
+		*(.gnu.linkonce.sb.*)
+		*(.scommon)
+		*(.gnu.linkonce.sb2.*)
+		*(.sbss)
+		*(.sbss.*)
+		*(.sbss2)
+		*(.sbss2.*)
+		*(.dynbss)
+		*(.data)
+		*(.data.*)
+		*(.got)
+		*(.got.*)
+		__DATA_END__ = .;
+	}
 
-  .bss : ALIGN(4K) {
-    *(.bss);
-  } >ram :ram
+	.bss : ALIGN( 16 ) {
+		__BSS_BEGIN__ = .;
+		*(.bss) /* Tricky: BSS needs to be allocated but not sent. GCC Will not populate these for calculating data size */
+		*(.bss.*)
+		__BSS_END__ = .;
+	}
 
-  PROVIDE( _bss_start = ADDR(.bss) );
-  PROVIDE( _bss_end = ADDR(.bss) + SIZEOF(.bss) );
+	.heap : ALIGN( 16 ) {
+		_sheap = .;
+		. = . + __heap_size;
+		_eheap = .;
+	}
 
-  PROVIDE( _stack_start = _bss_end );
-  /* Stack size of 4kB */
-  PROVIDE( _stack_end = _stack_start + 0x4000 );
-  PROVIDE( _heap_start = _stack_end );
-  PROVIDE( _PHYSTOP = ORIGIN(ram) + LENGTH(ram) );
+	.stack : ALIGN( 16 ) {
+		_estack = .;
+		. = . + __stack_size;
+		_sstack = .;
+	}
+
+	PROVIDE( SYSCON = 0x11100000 );
+	PROVIDE( TIMERL = 0x1100bff8 );
+	PROVIDE( TIMERH = 0x1100bffc );
 }
