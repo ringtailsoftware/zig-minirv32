@@ -14,15 +14,15 @@ export fn _start() callconv(.Naked) noreturn {
 
 // https://rosettacode.org/wiki/Mandelbrot_set
 fn mandel() void {
-    var xmin: i32 = -8601;
-    var xmax: i32 = 2867;
-    var ymin: i32 = -4915;
-    var ymax: i32 = 4915;
+    const xmin: i32 = -8601;
+    const xmax: i32 = 2867;
+    const ymin: i32 = -4915;
+    const ymax: i32 = 4915;
 
     const maxiter: usize = 32;
 
-    var dx: i32 = @divTrunc((xmax - xmin), 79);
-    var dy: i32 = @divTrunc((ymax - ymin), 24);
+    const dx: i32 = @divTrunc((xmax - xmin), 79);
+    const dy: i32 = @divTrunc((ymax - ymin), 24);
 
     var cy = ymin;
     while (cy <= ymax) {
@@ -40,7 +40,7 @@ fn mandel() void {
                 x2 = (x * x) >> 12;
                 y2 = (y * y) >> 12;
             }
-            uart_buf_reg.* = ' ' + @intCast(u8, iter);
+            uart_buf_reg.* = ' ' + @as(u8, @intCast(iter));
 
             cx += dx;
         }
