@@ -130,7 +130,7 @@ pub fn main() !void {
     defer std.heap.page_allocator.free(memory);
 
     // load the image into RAM
-    var path_buffer: [std.fs.MAX_PATH_BYTES]u8 = undefined;
+    var path_buffer: [std.fs.max_path_bytes]u8 = undefined;
     const path = try std.fs.realpath(binFilename, &path_buffer);
     const file = try std.fs.openFileAbsolute(path, .{});
     defer file.close();

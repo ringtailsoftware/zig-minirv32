@@ -78,7 +78,7 @@ fn runcmd(args:ArgList) !void {
 // execute a command line
 fn execline(line:[]const u8) !void {
     // tokenize, returns iterator to slices
-    var tokens = std.mem.tokenize(u8, line, " ");
+    var tokens = std.mem.tokenizeAny(u8, line, " ");
     // setup argv array to hold tokens
     var argv:[MAXARGS] []const u8 = .{undefined} ** MAXARGS;
     var argc:u8 = 0;

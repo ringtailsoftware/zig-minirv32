@@ -35,7 +35,7 @@ pub fn build(b: *std.Build) void {
 
     exe.addAssemblyFile(b.path("src/start.s"));
 
-    exe.setLinkerScriptPath(b.path("src/linker.ld"));
+    exe.setLinkerScript(b.path("src/linker.ld"));
 
     const bin = b.addObjCopy(exe.getEmittedBin(), .{
         .format = .bin,

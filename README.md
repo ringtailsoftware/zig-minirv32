@@ -9,7 +9,7 @@ Blog posts documenting some of this:
  - https://www.ringtailsoftware.co.uk/zig-rv32/
  - https://www.ringtailsoftware.co.uk/zig-baremetal/
 
-Tested with `zig 0.13.0`
+Tested with `zig 0.14.0`
 
 ![](demo.gif)
 

@@ -33,7 +33,7 @@ pub fn build(b: *std.Build) void {
         .optimize = .ReleaseSmall,
     });
 
-    exe.setLinkerScriptPath(b.path("src/linker.ld"));
+    exe.setLinkerScript(b.path("src/linker.ld"));
 
     const bin = b.addObjCopy(exe.getEmittedBin(), .{
         .format = .bin,
