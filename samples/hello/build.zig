@@ -28,9 +28,11 @@ pub fn build(b: *std.Build) void {
 
     const exe = b.addExecutable(.{
         .name = "hello",
-        .root_source_file = b.path("src/main.zig"),
-        .target = target,
-        .optimize = .ReleaseSmall,
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("src/main.zig"),
+            .target = target,
+            .optimize = .ReleaseSmall,
+        }),
     });
 
     exe.setLinkerScript(b.path("src/linker.ld"));

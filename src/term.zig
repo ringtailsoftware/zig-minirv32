@@ -34,7 +34,7 @@ pub fn init() void {
     _ = c.atexit(cleanup_terminal);
 }
 
-fn cleanup_terminal() callconv(.C) void {
+fn cleanup_terminal() callconv(.c) void {
     _ = c.tcsetattr(std.os.linux.STDIN_FILENO, c.TCSANOW, &originalTermios);
     std.debug.print("\nFinished\n", .{});
 }

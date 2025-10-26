@@ -29,7 +29,9 @@ const MINIRV32_RAM_IMAGE_OFFSET: u32 = 0x80000000;
 const dtbData = @embedFile("sixtyfourmb.dtb");
 
 var console_scratch: [8192]u8 = undefined;
-var console_fifo = std.fifo.LinearFifo(u8, .Slice).init(console_scratch[0..]);
+//var console_fifo = std.fifo.LinearFifo(u8, .Slice).init(console_scratch[0..]);
+
+var console_fifo:std.Deque(u8) = std.Deque(u8).initBuffer(&console_scratch);
 
 const memSize = 64 * 1024 * 1024;
 
@@ -84,15 +86,14 @@ fn HandleControlStore(addr: u32, val: u32) u32 {
 fn HandleControlLoad(addr: u32) u32 {
     // Emulating a 8250 / 16550 UART
     if (addr == 0x10000005) {
-        if (console_fifo.count > 0) {
+        if (console_fifo.len > 0) {
             return 0x60 | 1; //intCastCompat(u32, console_fifo.count);
         } else {
             return 0x60;
         }
-    } else if (addr == 0x10000000 and console_fifo.count > 0) {
-        var buf: [1]u8 = undefined;
-        _ = console_fifo.read(&buf);
-        return intCastCompat(u32, buf[0]);
+    } else if (addr == 0x10000000 and console_fifo.len > 0) {
+        const c:u8 = console_fifo.popFront().?;
+        return intCastCompat(u32, c);
     }
     return 0;
 }
@@ -125,7 +126,7 @@ pub fn main() !void {
     const binFilename = std.mem.span(std.os.argv[1]);
 
     // allocate machine's RAM
-    const memory = try std.heap.page_allocator.alignedAlloc(u8, 4, memSize);
+    const memory = try std.heap.page_allocator.alignedAlloc(u8, std.mem.Alignment.@"4", memSize);
     @memset(memory.ptr[0..memSize], 0x00);
     defer std.heap.page_allocator.free(memory);
 
@@ -172,8 +173,7 @@ pub fn main() !void {
 
     while (true) {
         if (term.getch()) |b| {
-            const sl: [1]u8 = .{b};
-            _ = console_fifo.write(&sl) catch null;
+            console_fifo.pushBackAssumeCapacity(b);
             if (prevKeyCtrlA and b == 'x') {
                 break;
             }
