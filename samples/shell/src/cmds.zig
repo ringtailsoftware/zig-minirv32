@@ -2,10 +2,10 @@ const std = @import("std");
 const shell = @import("shell.zig");
 const term = @import("term.zig");
 
-var tw = term.getWriter().writer();
+var tw = term.getWriter();
 
 fn echoCmd(args:shell.ArgList) shell.CmdErr!void {
-    _ = try tw.print("You said: {s}\n", .{args});
+    _ = try tw.print("You said: {any}\n", .{args});
 }
 
 fn ledCmd(args:shell.ArgList) shell.CmdErr!void {

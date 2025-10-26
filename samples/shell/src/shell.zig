@@ -11,11 +11,18 @@ var got_line:bool = false;
 var cmdbuf:[CMDBUF_SIZE_BYTES+1]u8 = .{0} ** (CMDBUF_SIZE_BYTES+1);
 var cmdbuf_len:usize = 0;
 
-var tw = term.getWriter().writer();
+var tw = term.getWriter();
 
 // type definitions
 pub const ArgList = [][]const u8;
 pub const CmdHandler = *const fn(args:ArgList) CmdErr!void; // function pointer
+
+pub const InternalCmdErr = error{
+    BadArgs,
+    Fail
+};
+
+pub const CmdErr = InternalCmdErr || error{WriteFailed};
 
 // comptime helper to contruct handler table
 pub fn makeCmd(comptime name:[] const u8, comptime handler: CmdHandler) Cmd {
@@ -25,10 +32,6 @@ pub fn makeCmd(comptime name:[] const u8, comptime handler: CmdHandler) Cmd {
     };
 }
 
-pub const CmdErr = error{
-    BadArgs,
-    Fail
-};
 
 pub const Cmd = struct{
     name: [] const u8,
@@ -63,6 +66,7 @@ fn runcmd(args:ArgList) !void {
                 } else |err| switch(err) {  // report error from command handler
                     CmdErr.BadArgs => _ = try tw.print("\nBad arguments\n", .{}),
                     CmdErr.Fail => _ = try tw.print("\nFailed\n", .{}),
+                    CmdErr.WriteFailed => _ = try tw.print("\nWrite failed\n", .{}),
                 }
             }
         }

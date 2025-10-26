@@ -30,32 +30,54 @@ pub fn getch() ?u8 {
     }
 }
 
-fn uart_write(buf:[]const u8) !void {
+pub fn uart_write(buf:[]const u8) !void {
     for (buf) |c| uartreg.raw.value = c;
 }
 
-// Implement a std.io.Writer backed by uart_write()
-const TermWriter = struct {
-    const Writer = std.io.Writer(
-        *TermWriter,
-        error{},
-        write,
-    );
 
-    fn write(
-        self: *TermWriter,
-        data: []const u8,
-    ) error{}!usize {
-        _ = self;
-        try uart_write(data);
-        return data.len;
+var wbuf:[4096]u8 = undefined;
+var cw = TermWriter.init(&wbuf);
+
+pub const WriteError = error{ Unsupported, NotConnected };
+
+pub const TermWriter = struct {
+    interface: std.Io.Writer,
+    err: ?WriteError = null,
+
+    fn drain(w: *std.Io.Writer, data: []const []const u8, splat: usize) std.Io.Writer.Error!usize {
+        var ret: usize = 0;
+
+        const b = w.buffered();
+        _ = uart_write(b) catch 0;
+        _ = w.consume(b.len);
+
+        for (data) |d| {
+            _ = uart_write(d) catch 0;
+            ret += d.len;
+        }
+
+        const pattern = data[data.len - 1];
+        for (0..splat) |_| {
+            _ = uart_write(pattern) catch 0;
+            ret += pattern.len;
+        }
+
+        return ret;
     }
 
-    pub fn writer(self: *TermWriter) Writer {
-        return .{ .context = self };
+    pub fn init(buf: []u8) TermWriter {
+        return TermWriter{
+            .interface = .{
+                .buffer = buf,
+                .vtable = &.{
+                    .drain = drain,
+                },
+            },
+        };
     }
 };
 
-pub fn getWriter() *TermWriter {
-    return &tw;
+pub fn getWriter() *std.Io.Writer {
+    return &cw.interface;
 }
+
