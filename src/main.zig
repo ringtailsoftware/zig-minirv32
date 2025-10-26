@@ -29,8 +29,6 @@ const MINIRV32_RAM_IMAGE_OFFSET: u32 = 0x80000000;
 const dtbData = @embedFile("sixtyfourmb.dtb");
 
 var console_scratch: [8192]u8 = undefined;
-//var console_fifo = std.fifo.LinearFifo(u8, .Slice).init(console_scratch[0..]);
-
 var console_fifo:std.Deque(u8) = std.Deque(u8).initBuffer(&console_scratch);
 
 const memSize = 64 * 1024 * 1024;
